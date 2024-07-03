@@ -1,13 +1,8 @@
 import struct
 import socket
 import time, datetime
-from sqlalchemy import create_engine
 import mysql.connector
 from mysql.connector import Error
-
-
-
-import pandas as pd
 
 
 def conexao(host: str, porta: int) -> socket.socket:
@@ -33,26 +28,28 @@ def gerarRequisicao(transactionId: int, unitId: int, startingAddress = 0) -> byt
 
 
 def recuperarParametrosCounicacao(codEquipamento: int) -> list:
-   # con = pymysql.connect(host='192.168.4.50', user='root',
-   #                         password='025supergerasol', database='sup_geral')
    
-   # sql = """
-   #    SELECT 
-   #       `host`, `porta`, `modbus_id`, `equipamentos`.`cod_tipo_equipamento`
-   #    FROM
-   #       `modbus_tcp`
-   #          LEFT JOIN
-   #       `equipamentos` ON `modbus_tcp`.`cod_equipamento` = `equipamentos`.`codigo`
-   #    WHERE
-   #       `modbus_tcp`.`cod_equipamento` = %s AND `modbus_tcp`.`ativo` = 1   
-   # """
-   # with con:
-   #    with con.cursor() as cursor:
-   #          cursor.execute(sql,codEquipamento)
-   #          result = cursor.fetchone()
-            
-            
-            return '10.10.63.11', 502, 1, 16, codEquipamento
+   sql = f"""
+      SELECT 
+         `host`, `porta`, `modbus_id`, `equipamentos`.`cod_tipo_equipamento`
+      FROM
+         `modbus_tcp`
+            LEFT JOIN
+         `equipamentos` ON `modbus_tcp`.`cod_equipamento` = `equipamentos`.`codigo`
+      WHERE
+         `modbus_tcp`.`cod_equipamento` = {codEquipamento} AND `modbus_tcp`.`ativo` = 1   
+   """
+   with mysql.connector.connect( user='root', 
+                                 password='025supergerasol',
+                                 host='192.168.4.50',
+                                 database='sup_geral') as con:
+      with con.cursor() as cursor:
+         cursor.execute(sql)
+         result = cursor.fetchone()
+         
+         # host, porta, modbusId, codTipoEquipamento
+         return result[0], result[1], result[2], result[3], codEquipamento
+
 
 def processarResposta(resp: bytes) -> str:
    try:  
@@ -63,66 +60,17 @@ def processarResposta(resp: bytes) -> str:
    except struct.error:
       return Exception
    
-   # print(data)
+
    text = [chr(x) for x in data[6:86] if x != 0]
 
    # Juntar a lista de caracteres em uma string
    text = ''.join(text)
 
-   # Dividir a string no caractere '\xa0' e selecionar a parte antes do primeiro '\xa0'
-   # text = text.split('\xa0')[0]
-
-   # dados = {
-   #       "transactionId":   data[0],
-   #       "protocolId":      data [1],
-   #       "unitId":          data[3],
-   #       "functionCode":    data[4],
-   #       "byteCount":       data[5],
-   #       "text":            text,
-   #       "year":            data[86],
-   #       "month":           data[87],
-   #       "day":             data[88],
-   #       "hour":            data[89],
-   #       "minute":          data[90],
-   #       "second":          data[91],
-   #       "milisecond":      data[92],
-   #       "channel":         data[93],
-   #       "ppower":          data[94],
-   #       "qpower":          data[95],
-   #       "pf":              data[96],
-   #       "genU1":           data[97],
-   #       "genU2":           data[98],
-   #       "genU3":           data[99],
-   #       "genI1":           data[100],
-   #       "genI2":           data[101],
-   #       "genI3":           data[102],
-   #       "genF":            data[103],
-   #       "busU1":           data[104],
-   #       "busU2":           data[105],
-   #       "busU3":           data[106],
-   #       "busF":            data[107],
-   #       "df/dt":           data[108],
-   #       "vector":          data[109],
-   #       "multiInput20":    data[110],
-   #       "multiInput21":    data[111],
-   #       "multiInput22":    data[112],
-   #       "multiInput23":    data[113],
-   #       "tacho":           data[114],
-   #       "alarmValue":      data[115]
-   #    }
-
-   # date =    f"{data[86]}-{data[87]}-{data[88]} {data[89]}:{data[90]}:{data[91]}.{data[92]}"
    date = datetime.datetime(year=data[86], month=data[87], day=data[88], 
                             hour=data[89], minute=data[90], second=data[91], microsecond=data[92])
 
    return text, data, date
 
-# def getEngine(host, port, user, password):
-#     return create_engine(
-#         url="mysql+pymysql://{0}:{1}@{2}:{3}/{4}".format(
-#             user, password, host, port, "testes"
-#         )
-#     )
 
 
 def escreveNoBanco(cnx, cursor, codEquipamento, codTipoEquipamento, nomeEvent, textEvent, date):
@@ -139,10 +87,8 @@ def escreveNoBanco(cnx, cursor, codEquipamento, codTipoEquipamento, nomeEvent, t
 
 def main():
    inicio = time.time()
-   # id, cod_equipamento, tipo_equipamento, nome_event, text_event, data_cadastro
 
-   host, porta, modbusId, codTipoEquipamento, codEquipamento = recuperarParametrosCounicacao(293) # host, porta, modbusId
-   # print(host, porta, modbusId, codTipoEquipamento)
+   host, porta, modbusId, codTipoEquipamento, codEquipamento = recuperarParametrosCounicacao(293) 
 
    
    log = []
@@ -160,21 +106,11 @@ def main():
                   try:
                      nomeEvent, textEvent, date = processarResposta(res)
                      if nomeEvent != '':
-                        # log.append([codEquipamento, codTipoEquipamento, textEvent, nomeEvent, date])
-
-                        # sql = f"""INSERT INTO `logs` (cod_equipamento, cod_tipo_equipamento, nome_event, text_event, data_cadastro) 
-                        #             VALUES ({codEquipamento}, {codTipoEquipamento}, '{nomeEvent}', '{textEvent}', {date})
-                        # """
-                        # cursor.execute(sql)
                         escreveNoBanco(cnx, cursor, codEquipamento, codTipoEquipamento, nomeEvent, textEvent, date)
                         
                      else: StopIteration
                   except Exception:
                      StopIteration
-               # engine = getEngine(host, porta, "root", "025supergerasol")
-               # df = pd.DataFrame(log)
-               # # df.to_csv('teste.csv', index=False, encoding='utf-8')
-               # df.to_sql('testelogs',engine,'testes',if_exists='append')
                
 
             except Error as e:
