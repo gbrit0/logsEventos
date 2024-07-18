@@ -3,16 +3,26 @@ import socket
 import time, datetime
 import mysql.connector
 from mysql.connector import Error
+import pandas as pd
+import re
 
 
-def conexao(host: str, porta: int) -> socket.socket:
-   con = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-   con.connect((host, porta))
 
-   return con
+def conectarComModbus(host: str, porta: int): #  -> socket.socket
+   try:
+      con = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      con.settimeout(100)
+      con.connect((host, porta))
+   except TimeoutError as e:
+      print(f"Erro de conexão com Modbus: {e}")
+      return
+   finally:
+      return con
+      
 
 
-def gerarRequisicao(transactionId: int, unitId: int, startingAddress = 0) -> bytes:
+
+def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: int = 0) -> bytes:
    """tipoLog: 'E' para eventos ou 'A' para alarmes"""
    
    return struct.pack(
@@ -25,6 +35,7 @@ def gerarRequisicao(transactionId: int, unitId: int, startingAddress = 0) -> byt
       startingAddress,
       84
    )
+
 
 
 def recuperarParametrosCounicacao(codEquipamento: int) -> list:
@@ -48,73 +59,223 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
          result = cursor.fetchone()
          
          # host, porta, modbusId, codTipoEquipamento
-         return result[0], result[1], result[2], result[3], codEquipamento
+         return result[0], result[1], result[2], result[3]#, codEquipamento
 
 
-def processarResposta(resp: bytes) -> str:
-   try:  
+
+def processarRespostaModbus(resp: bytes) -> str:
+   try:   
       data = struct.unpack(
-            """>3H83B29H30B""",
+            """>3H83B30h28b""",
             resp
          )
-   except struct.error:
-      return Exception
+      # print(data)
+   except struct.error as e:
+      print(f"struct error: {e}")
+      return
+   # except Exception as e:
+   #    print(e)
+   
+   if data[86] == 0:
+      return None
+
+   text = [chr(x) for x in data[6:86] if (x >= 32 and x <= 127)]
+   # text = ''
+   # for byte in data[6:86]:
+   #    if byte == 1:
+   #       break
+   #    if 32 <= byte <= 126:
+   #       text += chr(byte)
+
+   # # Usar regex para dividir na primeira ocorrência de espaço duplo
+   # text = re.split(r' {2}', text, maxsplit=1)
+
+   # # A parte desejada está antes do primeiro espaço duplo
+   # text = text[0]
    
 
-   text = [chr(x) for x in data[6:86] if x != 0]
 
    # Juntar a lista de caracteres em uma string
    text = ''.join(text)
 
    date = datetime.datetime(year=data[86], month=data[87], day=data[88], 
-                            hour=data[89], minute=data[90], second=data[91], microsecond=data[92])
+                            hour=data[89], minute=data[90], second=data[91], microsecond=data[92]*1000)
 
    return text, data, date
 
 
 
-def escreveNoBanco(cnx, cursor, codEquipamento, codTipoEquipamento, nomeEvent, textEvent, date):
+def escreverLogNoBancoLinhaALinha(conexaoComBanco, cursor, codEquipamento, codTipoEquipamento, nomeEvent, textEvent, date, tipoLog = 0):
+   
+   if tipoLog == 1: 
+      tabela , coluna1, coluna2 = ['event_alarm', 'nome_alarm', 'text_alarm']
+   else:
+      tabela, coluna1, coluna2 = ['event_log', 'nome_event', 'text_event']
+
    sql = f"""
-      INSERT INTO `testelogs` (cod_equipamento, cod_tipo_equipamento, nome_event, text_event, data_cadastro) 
-         VALUES ({codEquipamento}, {codTipoEquipamento}, '{nomeEvent}', '{textEvent}', '{date}')
+      INSERT INTO `{tabela}` (cod_equipamento, cod_tipo_equipamento, {coluna1}, {coluna2}, data_cadastro) 
+         VALUES ({codEquipamento}, {codTipoEquipamento}, '{nomeEvent}', '{textEvent[93:]}', '{date}')    
    """
+   # de text[86:93] está a data
+   # de text[93:] estão os valores dos parâmetros
    try:
       cursor.execute(sql)
-      cnx.commit()
+      conexaoComBanco.commit()
+      
    except Error as e:
-       print(e)
+      print(f"erro de conexao MySQL: {e}")
 
 
-def main():
-   inicio = time.time()
 
-   host, porta, modbusId, codTipoEquipamento, codEquipamento = recuperarParametrosCounicacao(293) 
+def buscarColunasPorTipoEquipamento(codTipoEquipamento: int, cursor):
+   query = f"""
+      SELECT colunas from colunas_por_tipo_equipamento WHERE cod_tipo_equipamento = {codTipoEquipamento};
+   """
 
+   cursor.execute(query)
+   return cursor.fetchone()
    
-   log = []
-   with conexao(host, porta) as con:
+
+
+def buscarLogsNoBanco(cursor, codEquipamento):
+   query = f"""
+      SELECT 
+         data_cadastro, cod_equipamento, cod_tipo_equipamento, nome_event, text_event 
+      FROM 
+         testelogs 
+      WHERE 
+         cod_equipamento = {codEquipamento} 
+      ORDER BY 
+         data_cadastro 
+      DESC 
+      LIMIT 500
+   """
+   cursor.execute(query)
+   return cursor.fetchall()
+
+
+
+def expandirTextEvent(log, colunas):
+   dataCadastro, codEquipamento, codTipoEquipamento, nomeEvent, textEvents  = log
+   textEvents = textEvents.strip('()').split(', ')
+   # print(type(textEvents))
+   textEventsExpandido = {}
+   for index, coluna in enumerate(colunas):
+      textEventsExpandido[coluna] = textEvents[index]
+
+   logExpandido = {
+      'data_cadastro': dataCadastro,
+      'cod_equipamento': codEquipamento,
+      'codTipoEquipamento': codTipoEquipamento,
+      'nome_event': nomeEvent,
+
+   }
+
+   logExpandido.update(textEventsExpandido)
+   
+   return logExpandido
+   
+
+
+def processarLogs(logs, colunas):
+    todosLogs = []
+    for log in logs:
+        logExpandido = expandirTextEvent(log, colunas)
+        todosLogs.append(logExpandido)
+    return todosLogs
+
+
+
+def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
+   if tipoLog == 1: 
+      tabela , colunaNome, colunaText = ['event_alarm', 'nome_alarm', 'text_alarm']
+   else:
+      tabela, colunaNome, colunaText = ['event_log', 'nome_event', 'text_event']
+
+   query = f"""
+      SELECT 
+         cod_equipamento, cod_tipo_equipamento, {colunaNome}, {colunaText},  data_cadastro 
+      FROM {tabela} 
+      WHERE cod_equipamento = {codEquipamento} 
+      HAVING max(data_cadastro)
+      ORDER BY data_cadastro DESC 
+      LIMIT 1;
+   """
+
+   cursor.execute(query)
+   return cursor.fetchone()
+
+
+def fetchLog(codEquipamento, tipoLog = 0):
+   host, porta, modbusId, codTipoEquipamento = recuperarParametrosCounicacao(codEquipamento)
+
+   with conectarComModbus(host, porta) as con:
       with mysql.connector.connect(user='root', password='025supergerasol',
                                  host='127.0.0.1',
-                                 database='testes') as cnx:
-         with cnx.cursor() as cursor:
+                                 database='testes') as conexaoComBanco:
+         with conexaoComBanco.cursor() as cursor:
+
+            ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
+            
+            if not ultimaLinha:
+               ultimaLinha = (0, 0, '', datetime.datetime(1900,1,1,0,0,0,0))
+
+            if tipoLog == 1:  # Log Alarmes
+               ran = range(500, 1000)
+            else: # Log Eventos
+               ran = range(500)
+
             try:
-               for startingAddress in range(500):
-                  
+               for startingAddress in ran:
                   req = gerarRequisicao(startingAddress,modbusId,startingAddress) # startingAddress é sempre o mesmo número que o transactionId
                   con.send(req)
                   res = con.recv(1024)
+                  # print(res)
                   try:
-                     nomeEvent, textEvent, date = processarResposta(res)
-                     if nomeEvent != '':
-                        escreveNoBanco(cnx, cursor, codEquipamento, codTipoEquipamento, nomeEvent, textEvent, date)
-                        
-                     else: StopIteration
-                  except Exception:
-                     StopIteration
+                     nomeEvent, textEvent, date = processarRespostaModbus(res)
+                     linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
+                     
+                     if linha[3] >= ultimaLinha[3] and textEvent != ultimaLinha[3]: # Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                                                                                    #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
+                                                                                    #  então exibir apenas um é o suficiente.
+                        escreverLogNoBancoLinhaALinha(conexaoComBanco, cursor, codEquipamento, codTipoEquipamento, nomeEvent, textEvent, date, tipoLog)
+                     
+                  except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
+                     break
+                  except Exception as e:
+                     print(f"Erro ao processar resposta Modbus: {e}")
+                     break
+                     
+            except Error as e:
+               print(f"Erro na comunicacao com o banco de dados: {e}")
+               return
+            except ConnectionResetError as e:
+               print(f"Erro de conexao: {e}")
+               return
+            except TimeoutError as e:
+               print(f"{e}")
+               return
                
 
-            except Error as e:
-               print(e)
+def abreAsConexoesExecutaFuncao(codEquipamento, func, **kwargs):
+   host, porta, modbusId, codTipoEquipamento = recuperarParametrosCounicacao(codEquipamento)
+   
+   with conectarComModbus(host, porta) as con:
+      with mysql.connector.connect(user='root', password='025supergerasol',
+                                 host='127.0.0.1',
+                                 database='testes') as conexaoComBanco:
+         with conexaoComBanco.cursor() as cursor:
+            func(con, cursor, kwargs)
+
+
+
+
+def main(tipoLog = 0): # precisa receber também o codigo do equipamento
+   inicio = time.time()#2747
+   
+   
+   fetchLog(1868, 1) 
+
 
    fim = time.time()
    print(f"tempo de execução: {(fim-inicio):.2f} segundos")
@@ -122,43 +283,3 @@ def main():
 
 
 if __name__ == "__main__": main()
-
-
-
-# id, cod_equipamento, tipo_equipamento, nome_event, text_event, data_cadastro
-
-# em text_event vc coloca a linha inteira e define no banco esse campo como sendo "text", 
-# pq dai vc consegue transformar o array da linha inteira em texto e transformar de volta 
-# em array quando for usar
-
-# dai vc vai precisar só de outra tabela com id, cod_tipo_equipamento, colunas
-
-# AGC200
-
-# 16	GERADOR ELETRONICO COM AGC-200
-# 29	GERADOR COM AGC200 SEM MOTOR ELETRONICO
-# 31	MAINS COM AGC-200
-# 37	GERADOR COM AGC-200 2
-
-# AGC150
-
-# 27	GERADOR COM AGC 150 E MOTOR ELETRONICO
-# 41	GERADOR COM AGC 150 2
-# 43	GERADOR COM AGC 150 BIOGAS
-# 51	GERADOR COM AGC 150 HIBRIDO 34 KV
-# 55	GMG CAM ENERGY AGC 150
-
-# AGC 3/4
-
-# 1	GERADOR COM MODULO AGC-3/4 E MOTOR ELETRONICO
-# 4	GERADOR COM AGC-3 E MOTOR PERKINS ELETRONICO
-# 5	MAINS COM AGC-4
-# 6	MAINS AGC 4-34,5 kV
-# 7	MAINS COM AGC-3 13.8kV
-# 8	MAINS COM AGC-3 34kV
-# 18	GERADOR COM AGC-4 - SLIM/TWININFINITY
-# 22	GERADOR COM CGC400 SEM MOTOR ELETRONICO
-# 40	SICES GC-400 - GERADOR
-# 41	GERADOR COM AGC 150 2
-# 43	GERADOR COM AGC 150 BIOGAS
-# 51	GERADOR COM AGC 150 HIBRIDO 34 KV
