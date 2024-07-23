@@ -88,25 +88,26 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
 
 
 def processarRespostaModbus(resp: bytes) -> str:
-    try:
-        data = struct.unpack(
-            """>3H83B30h28b""",
-            resp
-        )
-    except struct.error as e:
-        print(f"struct error: {e}")
-        return None
-    
-    if data[86] == 0:
-        return None
+   try:
+      data = struct.unpack(
+         """>3H83B30h28b""",
+         resp
+      )
+      
+   except struct.error as e:
+      print(f"struct error: {e}")
+      return (None, None, None)
+   
+   if data[86] == 0:
+      return (None, None, None)
 
-    text =  data[6:86]
-    text = extrair_texto(text)
+   text =  data[6:86]
+   text = extrair_texto(text)
 
-    date = datetime.datetime(year=data[86], month=data[87], day=data[88], 
-                             hour=data[89], minute=data[90], second=data[91], microsecond=data[92]*1000)
-
-    return text, data, date
+   date = datetime.datetime(year=data[86], month=data[87], day=data[88], 
+                           hour=data[89], minute=data[90], second=data[91], microsecond=data[92]*1000)
+   # print(text, data, date)
+   return [text, data, date]
 
 def extrair_texto(caracteres):
     texto = []
@@ -247,7 +248,7 @@ def fetchLog(codEquipamento: int,
       if not conexaoComBanco and not conexaoComModbus:
          print(f"erro de conexao com banco e/ou com modbus")
          return
-      cursor = conexaoComBanco.cursor()
+      # cursor = conexaoComBanco.cursor()
       
       # print(f"modbusId: {modbusId}")
       # print(f"codTipoEquipamento: {codTipoEquipamento}")
@@ -267,9 +268,9 @@ def fetchLog(codEquipamento: int,
             req = gerarRequisicao(startingAddress,modbusId,startingAddress) # startingAddress é sempre o mesmo número que o transactionId
             conexaoComModbus.send(req)
             res = conexaoComModbus.recv(1024)
-            # print(res)
+            print(res)
             try:
-               nomeEvent, textEvent, date = processarRespostaModbus(res),
+               nomeEvent, textEvent, date = processarRespostaModbus(res)
                linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
                if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]: # Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                               #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
@@ -283,11 +284,10 @@ def fetchLog(codEquipamento: int,
                
             except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
                print(f"type error: {e}")
-               return 1
-               # break
-            # except Exception as e:
-            #    print(f"erro ao processar resposta modbus: {e}")
-            #    return 0
+               break
+            except Exception as e:
+               print(f"erro ao processar resposta modbus: {e}")
+               return 0
          
                
       except Error as e:
@@ -317,8 +317,10 @@ def processarSolicitacoesDeLogs(conexaoComBanco: connector,
                                 cursor: cursor):
          
    solicitacoes = buscarSolicitacoes(cursor)
+   print(solicitacoes)
 
    for solicitacao in solicitacoes:
+      print(solicitacao)
       idSolicitacao, codEquipamento, tipoLog, _ = solicitacao
 
       _, _, modbusId, codTipoEquipamento = recuperarParametrosCounicacao(codEquipamento)
@@ -370,7 +372,7 @@ def main():
 
 
    abreConexaoComBancoEExecutaFuncao(processarSolicitacoesDeLogs)
-
+   
 
    fim = time.time()
    print(f"tempo de execução: {(fim-inicio):.2f} segundos")
