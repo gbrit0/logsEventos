@@ -318,9 +318,9 @@ def buscarSolicitacoes(cursor: cursor):
    query = f"""SELECT
                   *
                FROM
-                  solicitacao_log
-               WHERE
-                  status = 0;"""
+                  solicitacao_log;
+            """# WHERE
+                 #  status = 0
    
    cursor.execute(query)
    return cursor.fetchall()
