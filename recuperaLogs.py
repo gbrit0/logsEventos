@@ -4,6 +4,7 @@ import time, datetime
 import os
 import argparse
 import mysql.connector
+from memory_profiler import profile
 
 
 
@@ -20,7 +21,7 @@ def conectarComModbus(idSolicitacao: str, host: str, porta: int): #  -> socket.s
    finally:
       return con
       
-
+@profile
 
 def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: int = 0, tipoLog: int = 0) -> bytes:
    """tipoLog= 0 para eventos ou 1 para alarmes
@@ -81,31 +82,31 @@ def recuperarParametrosCounicacao(idSolicitacao, codEquipamento: int, conexaoCom
    except mysql.connector.InterfaceError as e:
       # print(f"Erro de interface MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'Erro de interface MySQL: {e}'\n")
+         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de interface MySQL: {e}'\n")
    except mysql.connector.DatabaseError as e:
       # print(f"Erro de banco de dados MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'Erro de banco de dados MySQL: {e}'\n")
+         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de banco de dados MySQL: {e}'\n")
    except mysql.connector.OperationalError as e:
       # print(f"Erro operacional MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'Erro operacional MySQL: {e}'\n")
+         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro operacional MySQL: {e}'\n")
    except mysql.connector.IntegrityError as e:
       # print(f"Erro de integridade MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'Erro de integridade MySQL: {e}'\n")
+         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n")
    except mysql.connector.ProgrammingError as e:
       # print(f"Erro de programação MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'Erro de programação MySQL: {e}'\n")
+         file.write(f"{datetime.datetime.now()}       id{idSolicitacao}        'Erro de programação MySQL: {e}'\n")
    except mysql.connector.DataError as e:
       # print(f"Erro de dados MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'Erro de dados MySQL: {e}'\n")
+         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de dados MySQL: {e}'\n")
    except mysql.connector.Error as e:
       # print(f"Erro de conexão MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'Erro de conexão MySQL: {e}'\n")
+         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de conexão MySQL: {e}'\n")
 
    
 
@@ -247,7 +248,7 @@ def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
       WHERE cod_equipamento = {codEquipamento} 
       HAVING max(data_cadastro)
       ORDER BY data_cadastro DESC 
-      LIMIT 1;
+      LIMIT 1
    """
 
    cursor.execute(query)
@@ -299,9 +300,9 @@ def fetchLog(idSolicitacao: int,
                
             with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
 
-               ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
-               if ultimaLinha is None:
-                  ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
+               # ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
+               # if ultimaLinha is None:
+               #    ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
                # print(f"ultimaLinha: {ultimaLinha}")
 
                if tipoLog == 1:  # Log Alarmes
@@ -317,15 +318,18 @@ def fetchLog(idSolicitacao: int,
                      # print(res)
                      try:
                         nomeEvent, textEvent, date = processarRespostaModbus(idSolicitacao, res)
-                        linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                        if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]: #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                        
+                        # REMOVI A COMPARAÇÃO COM A ÚLTIMA LINHA POR CAUSA DO UNIQUE ADICIONADO NAS TABELAS DE LOGS
+
+                        # linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
+                        # if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]: #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                        #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                        #  então exibir apenas um é o suficiente.
-                           escreverLogNoBancoLinhaALinha(conexaoComBanco, 
-                                                         cursor, codEquipamento, 
-                                                         codTipoEquipamento, 
-                                                         nomeEvent, textEvent, 
-                                                         date, tipoLog)
+                        escreverLogNoBancoLinhaALinha(conexaoComBanco, 
+                                                      cursor, codEquipamento, 
+                                                      codTipoEquipamento, 
+                                                      nomeEvent, textEvent, 
+                                                      date, tipoLog)
                         
                         
                      except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
@@ -358,40 +362,6 @@ def buscarSolicitacoes(cursor: mysql.connector.cursor):
    
    cursor.execute(query)
    return cursor.fetchall()
-
-
-def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
-                                 cursor: mysql.connector.cursor):
-
-   for x in range(2):
-      query = f"""INSERT INTO solicitacao_log (cod_equipamento, cod_tipo_log)
-                  SELECT 
-                     cod_equipamento,
-                     {x}
-                  FROM
-                     modbus_tcp
-                  WHERE
-                     cod_equipamento IN (SELECT 
-                              mt.cod_equipamento
-                        FROM
-                              modbus_tcp mt
-                                 LEFT JOIN
-                              equipamentos eq ON eq.codigo = mt.cod_equipamento
-                                 LEFT JOIN
-                              usinas us ON eq.cod_usina = us.codigo
-                                 LEFT JOIN
-                              leituras lt ON lt.cod_equipamento = eq.codigo
-                        WHERE
-                              cod_tipo_conexao = 1 AND eq.ativo = 1
-                                 AND us.ativo = 1
-                                 AND lt.cod_campo = 3
-                                 AND TIMESTAMPDIFF(MINUTE,
-                                 lt.data_cadastro,
-                                 NOW()) < 10)
-                        AND cod_tipo_equipamento = 1;"""
-
-      cursor.execute(query)
-      conexaoComBanco.commit()
 
 
 def main(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog): # idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog
