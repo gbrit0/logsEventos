@@ -1,20 +1,17 @@
-import mysql.connector
 import os
 import subprocess
 import datetime
 import sys
+import time
+import mysql.connector
 
-def wait_for_processes(processes):
-    for process in processes:
-        process.wait()
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
    query = f"""SELECT
                   *
                FROM
                   solicitacao_log;
-            """# WHERE
-                 #  status = 0
+            """
    
    cursor.execute(query)
    return cursor.fetchall()
@@ -33,10 +30,10 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
    
    # mudar host para as variáveis de ambiente
    try:
-      with mysql.connector.connect(user = os.environ['USER'], 
-                              password = os.environ['PASSWORD'],
-                              host = os.environ['HOST'],
-                              database = 'teste') as con: # os.environ['DATABASE']
+      with mysql.connector.connect(user = os.environ['MYSQL_USER'], 
+                              password = os.environ['MYSQL_PASSWORD'],
+                              host = os.environ['MYSQL_HOST'],
+                              database = os.environ['MYSQL_DATABASE']) as con: # os.environ['DATABASE']
          # print(f"user: {os.environ['USER']}")
          # print(f"password: {os.environ['PASSWORD']}")
          # print(f"database: {os.environ['DATABASE']}")
@@ -63,51 +60,54 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
       print(f"Erro de conexão MySQL: {e}")
 
 
-
 def main():
+   inicio = time.time()
    try:
-      with mysql.connector.connect(user=os.environ['USER'],
-                       password=os.environ['PASSWORD'],
-                       host=os.environ['HOST'],
-                       database=os.environ['DATABASE']) as conexaoComBanco:
+      with mysql.connector.connect(user=os.environ['MYSQL_USER'],
+                       password=os.environ['MYSQL_PASSWORD'],
+                       host=os.environ['MYSQL_HOST'],
+                       database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
-            solicitacoes = buscarSolicitacoes(cursor)
-            processes = []
-            for solicitacao in solicitacoes:
-                  idSolicitacao, codEquipamento, codTipoLog = solicitacao
+            while buscarSolicitacoes(cursor):
+               solicitacoes = buscarSolicitacoes(cursor)
+               processes = []
+               for solicitacao in solicitacoes:
+                     idSolicitacao, codEquipamento, codTipoLog = solicitacao
 
-                  parametrosComunicacao = f"""
-                     SELECT 
-                        host, porta, modbus_id
-                     FROM
-                        modbus_tcp
-                     WHERE
-                        cod_equipamento = {codEquipamento}
-                        AND ativo = 1
-                  """
-                  cursor.execute(parametrosComunicacao)
-                  host, porta, modbusId = cursor.fetchone()
+                     parametrosComunicacao = f"""
+                        SELECT 
+                           host, porta, modbus_id
+                        FROM
+                           modbus_tcp
+                        WHERE
+                           cod_equipamento = {codEquipamento}
+                           AND ativo = 1
+                     """
+                     cursor.execute(parametrosComunicacao)
+                     resultado = cursor.fetchone()
+                     # print(f"tipo:{type(resultado)}")
+                     # print(f"{resultado}")
+                     if resultado:
+                        host, porta, modbusId = resultado
 
-                  process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
-                                             str(idSolicitacao), str(codEquipamento),
-                                             str(modbusId), host, str(porta), str(codTipoLog)],
-                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                  processes.append((process, idSolicitacao))
+                        process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
+                                                   str(idSolicitacao), str(codEquipamento),
+                                                   str(modbusId), host, str(porta), str(codTipoLog)],
+                                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        
 
-            # Aguardar a conclusão de todos os subprocessos e tratar a saída
-            for process, idSolicitacao in processes:
-                  stdout, stderr = process.communicate()
-                  if process.returncode == 0:
+                        processes.append((process, idSolicitacao))
+
+               # Aguardar a conclusão de todos os subprocessos e tratar a saída
+               for process, idSolicitacao in processes:
+                     stdout, stderr = process.communicate()
+                     if process.returncode != 0:
+                        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+                           file.write(f"{datetime.datetime.now()}       Erro ao executar recuperaLogs.py para a solicitação {idSolicitacao}         Saída padrão: {stdout}        Erro padrão: {stderr}")
+                     
                      deleteRow = f"delete from solicitacao_log where id = {idSolicitacao}"
                      cursor.execute(deleteRow)
                      conexaoComBanco.commit()
-                  else:
-                     with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-                        file.write(f"{datetime.datetime.now()}       Erro ao executar recuperaLogs.py para a solicitação {idSolicitacao}/
-                                   /         Saída padrão: {stdout}        Erro padrão: {stderr}")
-                     # print(f"Erro ao executar recuperaLogs.py para a solicitação {idSolicitacao}")
-                     # print(f"Saída padrão: {stdout}")
-                     # print(f"Erro padrão: {stderr}")
 
             
 
@@ -140,7 +140,8 @@ def main():
       with open("log.txt", 'a') as file:
          file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'Erro de conexão MySQL: {e}'\n")
 
-
+   fim = time.time()
+   print(f"tempo de execução: {(fim-inicio):.2f} segundos")
 
 
 if __name__ == "__main__": main()
