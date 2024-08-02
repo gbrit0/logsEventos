@@ -295,7 +295,7 @@ def fetchLog(idSolicitacao: int,
             codTipoEquipamento = testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta)
             if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
                with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-                     file.write(f"{datetime.datetime.now()}       {id}        'erro de conexao com banco e/ou com modbus'\n")
+                     file.write(f"{datetime.datetime.now()}       id:{id}        'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
                      return
                
             with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
@@ -322,16 +322,20 @@ def fetchLog(idSolicitacao: int,
                         # REMOVI A COMPARAÇÃO COM A ÚLTIMA LINHA POR CAUSA DO UNIQUE ADICIONADO NAS TABELAS DE LOGS
 
                         # linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                        # if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]: #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
-                                                                                       #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
-                                                                                       #  então exibir apenas um é o suficiente.
+                        # if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:  #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                                                                                          #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
+                                                                                          #  então exibir apenas um é o suficiente.
                         escreverLogNoBancoLinhaALinha(conexaoComBanco, 
                                                       cursor, codEquipamento, 
                                                       codTipoEquipamento, 
                                                       nomeEvent, textEvent, 
                                                       date, tipoLog)
                         
-                        
+                     except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
+                                                                  # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
+                        print(f"Erro de integridade MySQL: {e}")
+                        with open("logRecuperaLogs.txt", 'a') as file:
+                           file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
                      except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
                         # print(f"type error: {e}")
                         return 1

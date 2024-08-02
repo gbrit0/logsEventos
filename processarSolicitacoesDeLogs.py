@@ -116,6 +116,7 @@ def main():
                        database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             
+            popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
 
             time.sleep(5)
             # while buscarSolicitacoes(cursor):
