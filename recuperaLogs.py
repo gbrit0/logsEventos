@@ -21,7 +21,7 @@ def conectarComModbus(idSolicitacao: str, host: str, porta: int): #  -> socket.s
    finally:
       return con
       
-@profile
+# @profile
 
 def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: int = 0, tipoLog: int = 0) -> bytes:
    """tipoLog= 0 para eventos ou 1 para alarmes
@@ -374,19 +374,19 @@ def main(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog): # id
 
    fetchLog(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog)
 
-
    fim = time.time()
    print(f"tempo de execução: {(fim-inicio):.2f} segundos")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Recupera Logs de Equipamento')
-    parser.add_argument('idSolicitacao', type=int, help='ID da Solicitação')
-    parser.add_argument('codEquipamento', type=int, help='Código do Equipamento')
-    parser.add_argument('modbusId', type=int, help='ID Modbus')
-    parser.add_argument('host', type=str, help='Host')
-    parser.add_argument('porta', type=int, help='Porta')
-    parser.add_argument('codTipoLog', type=int, help='Código do Tipo de Log')
+   parser = argparse.ArgumentParser(description='Recupera Logs de Equipamento')
+   parser.add_argument('idSolicitacao', type=int, help='ID da Solicitação')
+   parser.add_argument('codEquipamento', type=int, help='Código do Equipamento')
+   parser.add_argument('modbusId', type=int, help='ID Modbus')
+   parser.add_argument('host', type=str, help='Host')
+   parser.add_argument('porta', type=int, help='Porta')
+   parser.add_argument('codTipoLog', type=int, help='Código do Tipo de Log')
 
-    args = parser.parse_args()
-    main(args.idSolicitacao, args.codEquipamento, args.modbusId, args.host, args.porta, args.codTipoLog)
+   args = parser.parse_args()
+   main(args.idSolicitacao, args.codEquipamento, args.modbusId, args.host, args.porta, args.codTipoLog)
+   
