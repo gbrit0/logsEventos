@@ -44,8 +44,8 @@ def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: in
          0,
          6,
          unitId,
-         4,
-         59900,
+         4, # código da função
+         59900, # código campo
          1
       )
 
