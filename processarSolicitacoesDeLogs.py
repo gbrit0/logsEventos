@@ -4,7 +4,6 @@ import datetime
 import sys
 import time
 import mysql.connector
-from memory_profiler import profile
 
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
