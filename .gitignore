@@ -1,3 +1,7 @@
 venv/
 __pycache__/
 *.csv
+log.txt
+logProcessarSolicitacoesLogs.txt
+logRecuperaLogs.txt
+testes.py
