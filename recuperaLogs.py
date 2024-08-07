@@ -300,10 +300,10 @@ def fetchLog(idSolicitacao: int,
                
             with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
 
-               # ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
-               # if ultimaLinha is None:
-               #    ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
-               # print(f"ultimaLinha: {ultimaLinha}")
+               ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
+               if ultimaLinha is None:
+                  ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
+               print(f"ultimaLinha: {ultimaLinha}")
 
                if tipoLog == 1:  # Log Alarmes
                   ran = range(500, 1000)
@@ -321,15 +321,15 @@ def fetchLog(idSolicitacao: int,
                         
                         # REMOVI A COMPARAÇÃO COM A ÚLTIMA LINHA POR CAUSA DO UNIQUE ADICIONADO NAS TABELAS DE LOGS
 
-                        # linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                        # if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:  #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                        linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
+                        if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:  #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                           #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                           #  então exibir apenas um é o suficiente.
-                        escreverLogNoBancoLinhaALinha(conexaoComBanco, 
-                                                      cursor, codEquipamento, 
-                                                      codTipoEquipamento, 
-                                                      nomeEvent, textEvent, 
-                                                      date, tipoLog)
+                           escreverLogNoBancoLinhaALinha(conexaoComBanco, 
+                                                         cursor, codEquipamento, 
+                                                         codTipoEquipamento, 
+                                                         nomeEvent, textEvent, 
+                                                         date, tipoLog)
                         
                      except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
                                                                   # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
