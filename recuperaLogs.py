@@ -3,8 +3,7 @@ import socket
 import time, datetime
 import os
 import argparse
-import mysql.connector
-from memory_profiler import profile
+import mysql.connector # type: ignore
 
 
 

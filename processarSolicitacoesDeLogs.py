@@ -3,7 +3,7 @@ import subprocess
 import datetime
 import sys
 import time
-import mysql.connector
+import mysql.connector # type: ignore
 
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
