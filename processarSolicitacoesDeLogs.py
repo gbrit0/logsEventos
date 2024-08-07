@@ -193,7 +193,8 @@ def main():
             cursor.execute(truncate)
             conexaoComBanco.commit()
 
+
    fim = time.time()
-   print(f"tempo de execução: {(fim-inicio):.2f} segundos")
+   print(f"{datetime.datetime.now()}   tempo de execução: {(fim-inicio):.2f} segundos")
 
 if __name__ == "__main__": main()
