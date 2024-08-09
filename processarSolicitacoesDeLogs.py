@@ -153,7 +153,7 @@ def processar_solicitacoes(pool, solicitacoes):
       #           log_file.write(f"{datetime.datetime.now()} - Subprocesso ID {process.pid} "
       #                          f"Equipamento {idSolicitacao}: Uso de memória: {memory_info.rss / 1024 ** 2} MB, "
       #                          f"Uso de CPU: {cpu_percent}%\n")
-            
+         
         # Após a conclusão
         stdout, stderr = process.communicate()
         if process.returncode != 0:
