@@ -5,6 +5,9 @@ import subprocess
 import datetime
 import sys
 import time
+import psutil
+
+
 
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
@@ -101,22 +104,22 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
 
 def processar_solicitacoes(pool, solicitacoes):
    try:
-      # solicitacoes = buscarSolicitacoes(cursor)
-      processes = []
+      
+    processes = []
 
-      for solicitacao in solicitacoes:
-         idSolicitacao, codEquipamento, codTipoLog = solicitacao
+    for solicitacao in solicitacoes:
+        idSolicitacao, codEquipamento, codTipoLog = solicitacao
 
-         # Apagar a linha correspondente à solicitação
-         deleteRow = f"DELETE FROM solicitacao_log WHERE id = {idSolicitacao}"
+        # Apagar a linha correspondente à solicitação
+        deleteRow = f"DELETE FROM solicitacao_log WHERE id = {idSolicitacao}"
 
-         with pool.get_connection() as conexaoComBanco:
+        with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
-               cursor.execute(deleteRow)
-               conexaoComBanco.commit()
+                cursor.execute(deleteRow)
+                conexaoComBanco.commit()
 
-         # Buscar parâmetros de comunicação
-         parametrosComunicacao = f"""
+        # Buscar parâmetros de comunicação
+        parametrosComunicacao = f"""
             SELECT 
                host, porta, modbus_id
             FROM
@@ -124,27 +127,41 @@ def processar_solicitacoes(pool, solicitacoes):
             WHERE
                cod_equipamento = {codEquipamento}
                AND ativo = 1
-         """
-         with pool.get_connection() as conexaoComBanco:
+        """
+        with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
-               cursor.execute(parametrosComunicacao)
-               resultado = cursor.fetchone()
+                cursor.execute(parametrosComunicacao)
+                resultado = cursor.fetchone()
 
-         if resultado:
+        if resultado:
             host, porta, modbusId = resultado
             process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
-                                          str(idSolicitacao), str(codEquipamento),
-                                          str(modbusId), host, str(porta), str(codTipoLog)],
-                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                        str(idSolicitacao), str(codEquipamento),
+                                        str(modbusId), host, str(porta), str(codTipoLog)],
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             processes.append((process, idSolicitacao))
 
-      # Aguardar a conclusão de todos os subprocessos
-      for process, idSolicitacao in processes:
-         stdout, stderr = process.communicate()
-         if process.returncode != 0:
+    # Monitorar e aguardar a conclusão de todos os subprocessos
+    for process, idSolicitacao in processes:
+        ps_process = psutil.Process(process.pid)
+        
+        while process.poll() is None:
+            memory_info = ps_process.memory_info()
+            cpu_percent = ps_process.cpu_percent(interval=1)
+
+            with open("logRecursosSubprocessos.txt", 'a') as log_file:
+                log_file.write(f"{datetime.datetime.now()} - Subprocesso ID {process.pid} "
+                               f"Equipamento {idSolicitacao}: Uso de memória: {memory_info.rss / 1024 ** 2} MB, "
+                               f"Uso de CPU: {cpu_percent}%\n")
+            
+        # Após a conclusão
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
             with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-                  file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
+                file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {idSolicitacao}\n"
                            f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
+
+
    except mysql.connector.DatabaseError as e:
       # print(f"Erro de banco de dados MySQL: {e}")
       with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
@@ -185,17 +202,17 @@ def main():
       with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
                popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
-               # time.sleep(5) 
+               time.sleep(5) 
 
       # Conexão para processar as solicitações
       
-      while True:
-         with pool.get_connection() as conexaoComBanco:
-            with conexaoComBanco.cursor() as cursor:
-               solicitacoes = buscarSolicitacoes(cursor)
-               if not solicitacoes:
-                  break
-               processar_solicitacoes(pool, solicitacoes)
+      # while True:
+      with pool.get_connection() as conexaoComBanco:
+         with conexaoComBanco.cursor() as cursor:
+            solicitacoes = buscarSolicitacoes(cursor)
+            # if not solicitacoes:
+               # break
+            processar_solicitacoes(pool, solicitacoes)
 
    except mysql.connector.InterfaceError as e:
       with open("logProcessarSolicitacoesLogs.txt", 'a') as file:

@@ -4,7 +4,7 @@ import time, datetime
 import os
 import argparse
 import mysql.connector # type: ignore
-
+from memory_profiler import profile
 
 
 def conectarComModbus(idSolicitacao: str, host: str, porta: int): #  -> socket.socket
@@ -346,7 +346,7 @@ def fetchLog(idSolicitacao: int,
          # print(f"ultimaLinha: {ultimaLinha}")
 
          if tipoLog == 1:  # Log Alarmes
-            ran = range(500, 510)
+            ran = range(500, 1000)
          else: # Log Eventos
             ran = range(500)
 
@@ -418,8 +418,11 @@ def buscarSolicitacoes(cursor: mysql.connector.cursor):
 def main(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog): # idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog
    inicio = time.time()
 
+   
 
    fetchLog(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog)
+
+  
 
    fim = time.time()
    print(f"tempo de execução: {(fim-inicio):.2f} segundos")
