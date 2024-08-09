@@ -173,6 +173,37 @@ def escreverLogNoBancoLinhaALinha(conexaoComBanco, cursor, codEquipamento, codTi
 
 
 
+def escreverLogNoBanco(pool, values, tipoLog):
+   if tipoLog == 1: 
+      tabela , coluna1, coluna2 = ['event_alarm', 'nome_alarm', 'text_alarm']
+   else:
+      tabela, coluna1, coluna2 = ['event_log', 'nome_event', 'text_event']
+
+   sql = f"""
+      INSERT IGNORE INTO `{tabela}` (cod_equipamento, cod_tipo_equipamento, {coluna1}, {coluna2}, data_cadastro) 
+         VALUES (%s, %s, %s, %s, %s)    
+   """
+   tentativas = 0
+   maxTentativas = 3
+
+   while tentativas < maxTentativas:
+      try:
+         with pool.get_connection() as conexaoComBanco:
+               with conexaoComBanco.cursor() as cursor:
+                  cursor.executemany(sql, values)
+                  conexaoComBanco.commit()
+         break  
+      except mysql.connector.errors.InternalError as e:
+         tentativas += 1
+         if tentativas < maxTentativas:
+            time.sleep(3)  
+         else: 
+            raise e
+      
+      
+
+
+
 def buscarColunasPorTipoEquipamento(codTipoEquipamento: int, cursor):
    query = f"""
       SELECT colunas from colunas_por_tipo_equipamento WHERE cod_tipo_equipamento = {codTipoEquipamento};
@@ -256,14 +287,14 @@ def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
    
 
 
-def abreConexaoComBancoEExecutaFuncao(func, **kwargs):
+# def abreConexaoComBancoEExecutaFuncao(func, **kwargs):
    
-   with mysql.connector.connect(user=os.environ['MYSQL_USER'], 
-                          password=os.environ['MYSQL_PASSWORD'], 
-                          host=os.environ['MYSQL_HOST'], 
-                          database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
-      with conexaoComBanco.cursor() as cursor:
-            func(conexaoComBanco=conexaoComBanco, cursor=cursor, **kwargs)
+#    with mysql.connector.connect(user=os.environ['MYSQL_USER'], 
+#                           password=os.environ['MYSQL_PASSWORD'], 
+#                           host=os.environ['MYSQL_HOST'], 
+#                           database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
+#       with conexaoComBanco.cursor() as cursor:
+#             func(conexaoComBanco=conexaoComBanco, cursor=cursor, **kwargs)
 
 
 def testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta):
@@ -285,75 +316,92 @@ def fetchLog(idSolicitacao: int,
              porta: int,
              tipoLog = 0):
 
+    
+   
    try:
-      with mysql.connector.connect(user = os.environ['MYSQL_USER'],
-                             password = os.environ['MYSQL_PASSWORD'],
-                             host = os.environ['MYSQL_HOST'],
-                             database = os.environ['MYSQL_DATABASE']) as conexaoComBanco:
+      pool = mysql.connector.pooling.MySQLConnectionPool(
+         pool_name="MySqlPool",
+         pool_size=5,
+         user=os.environ['MYSQL_USER'],
+         password=os.environ['MYSQL_PASSWORD'],
+         host=os.environ['MYSQL_HOST'],
+         database=os.environ['MYSQL_DATABASE']
+      )
+
+      with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             codTipoEquipamento = testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta)
-            if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
-               with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-                     file.write(f"{datetime.datetime.now()}       id:{id}        'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
-                     return
+         if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
+            with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+                  file.write(f"{datetime.datetime.now()}       id:{id}        'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
+                  return
                
-            with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
-
+      with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
+         with pool.get_connection() as conexaoComBanco:
+            with conexaoComBanco.cursor() as cursor:
                ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
-               if ultimaLinha is None:
-                  ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
-               print(f"ultimaLinha: {ultimaLinha}")
 
-               if tipoLog == 1:  # Log Alarmes
-                  ran = range(500, 1000)
-               else: # Log Eventos
-                  ran = range(500)
+         if ultimaLinha is None:
+            ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
+         # print(f"ultimaLinha: {ultimaLinha}")
 
+         if tipoLog == 1:  # Log Alarmes
+            ran = range(500, 510)
+         else: # Log Eventos
+            ran = range(500)
+
+         try:
+            values = []
+            for startingAddress in ran:
+               req = gerarRequisicao(startingAddress,modbusId,startingAddress, tipoLog) # startingAddress é sempre o mesmo número que o transactionId
+               conexaoComModbus.send(req)
+               res = conexaoComModbus.recv(1024)
+               # print(res)
                try:
-                  for startingAddress in ran:
-                     req = gerarRequisicao(startingAddress,modbusId,startingAddress, tipoLog) # startingAddress é sempre o mesmo número que o transactionId
-                     conexaoComModbus.send(req)
-                     res = conexaoComModbus.recv(1024)
-                     # print(res)
-                     try:
-                        nomeEvent, textEvent, date = processarRespostaModbus(idSolicitacao, res)
-                        
-                        # REMOVI A COMPARAÇÃO COM A ÚLTIMA LINHA POR CAUSA DO UNIQUE ADICIONADO NAS TABELAS DE LOGS
+                  nomeEvent, textEvent, date = processarRespostaModbus(idSolicitacao, res)
+               
+                  linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
+                  # if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                                                                                    #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
+                                                                                    #  então exibir apenas um é o suficiente.
+                     # escreverLogNoBancoLinhaALinha(conexaoComBanco, 
+                     #                               cursor, codEquipamento, 
+                     #                               codTipoEquipamento, 
+                     #                               nomeEvent, textEvent, 
+                     #                               date, tipoLog)
 
-                        linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                        if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:  #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
-                                                                                          #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
-                                                                                          #  então exibir apenas um é o suficiente.
-                           escreverLogNoBancoLinhaALinha(conexaoComBanco, 
-                                                         cursor, codEquipamento, 
-                                                         codTipoEquipamento, 
-                                                         nomeEvent, textEvent, 
-                                                         date, tipoLog)
-                        
-                     except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
-                                                                  # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
-                        print(f"Erro de integridade MySQL: {e}")
-                        with open("logRecuperaLogs.txt", 'a') as file:
-                           file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
-                     except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
-                        # print(f"type error: {e}")
-                        return 1
-                     except Exception as e:
-                        print(f"erro ao processar resposta modbus: {e}")
-                        return 0
-                        
-               except mysql.connector.Error as e:
-                  print(f"erro na comunicacao com o banco de dados: {e}")
+                  values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
+                  
+               except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
+                                                            # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
+                  print(f"Erro de integridade MySQL: {e}")
+                  with open("logRecuperaLogs.txt", 'a') as file:
+                     file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
+               except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
+                  # print(f"type error: {e}")
+                  return 1
+               except Exception as e:
+                  print(f"erro ao processar resposta modbus: {e}")
                   return 0
-               except ConnectionResetError as e:
-                  print(f"Erro de conexao: {e}")
-                  return 0
-               except TimeoutError as e:
-                  print(f"{e}")
-                  return 0
+            
+            
+                  
+         except mysql.connector.Error as e:
+            print(f"erro na comunicacao com o banco de dados: {e}")
+            return 0
+         except ConnectionResetError as e:
+            print(f"Erro de conexao: {e}")
+            return 0
+         except TimeoutError as e:
+            print(f"{e}")
+            return 0
+         finally:
+            # print(values)
+            escreverLogNoBanco(pool, values, tipoLog)
+
    except TimeoutError as e:
       print(f"Erro de conexão com Modbus: {e}")
-   return 1
+      return 1
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
    query = f"""SELECT

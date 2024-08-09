@@ -1,9 +1,10 @@
+import mysql.connector
+# from mysql.connector import pooling
 import os
 import subprocess
 import datetime
 import sys
 import time
-import mysql.connector # type: ignore
 
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
@@ -97,72 +98,53 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
       print(f"Erro de conexão MySQL: {e}")
       
 
-def main():
-   inicio = time.time()
-   
+
+def processar_solicitacoes(pool, solicitacoes):
    try:
-      with mysql.connector.connect(user=os.environ['MYSQL_USER'],
-                       password=os.environ['MYSQL_PASSWORD'],
-                       host=os.environ['MYSQL_HOST'],
-                       database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
-         with conexaoComBanco.cursor() as cursor:
-            
-            popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
-            time.sleep(5)
-            
+      # solicitacoes = buscarSolicitacoes(cursor)
+      processes = []
 
-            while buscarSolicitacoes(cursor):
-               solicitacoes = buscarSolicitacoes(cursor)
-               processes = []
-               for solicitacao in solicitacoes:
-                     idSolicitacao, codEquipamento, codTipoLog = solicitacao
+      for solicitacao in solicitacoes:
+         idSolicitacao, codEquipamento, codTipoLog = solicitacao
 
+         # Apagar a linha correspondente à solicitação
+         deleteRow = f"DELETE FROM solicitacao_log WHERE id = {idSolicitacao}"
 
-                     # Apagar as linhas antes de executar as demais operações pois, caso essas falhem,
-                     # garante-se a exclusão da solicitação
-                     deleteRow = f"delete from solicitacao_log where id = {idSolicitacao}"
-                     cursor.execute(deleteRow)
-                     conexaoComBanco.commit()
+         with pool.get_connection() as conexaoComBanco:
+            with conexaoComBanco.cursor() as cursor:
+               cursor.execute(deleteRow)
+               conexaoComBanco.commit()
 
-                     parametrosComunicacao = f"""
-                        SELECT 
-                           host, porta, modbus_id
-                        FROM
-                           modbus_tcp
-                        WHERE
-                           cod_equipamento = {codEquipamento}
-                           AND ativo = 1
-                     """
-                     cursor.execute(parametrosComunicacao)
-                     resultado = cursor.fetchone()
+         # Buscar parâmetros de comunicação
+         parametrosComunicacao = f"""
+            SELECT 
+               host, porta, modbus_id
+            FROM
+               modbus_tcp
+            WHERE
+               cod_equipamento = {codEquipamento}
+               AND ativo = 1
+         """
+         with pool.get_connection() as conexaoComBanco:
+            with conexaoComBanco.cursor() as cursor:
+               cursor.execute(parametrosComunicacao)
+               resultado = cursor.fetchone()
 
-                     # print(f"tipo:{type(resultado)}")
-                     # print(f"{resultado}")
-                  
+         if resultado:
+            host, porta, modbusId = resultado
+            process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
+                                          str(idSolicitacao), str(codEquipamento),
+                                          str(modbusId), host, str(porta), str(codTipoLog)],
+                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            processes.append((process, idSolicitacao))
 
-                     if resultado:
-                        host, porta, modbusId = resultado
-                        process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
-                                                   str(idSolicitacao), str(codEquipamento),
-                                                   str(modbusId), host, str(porta), str(codTipoLog)],
-                                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                        processes.append((process, idSolicitacao))
-
-
-               # Aguardar a conclusão de todos os subprocessos e tratar a saída
-               for process, idSolicitacao in processes:
-                     stdout, stderr = process.communicate()
-                     if process.returncode != 0:
-                        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-                           file.write(f"""{datetime.datetime.now()}       Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}
-                                             Saída padrão: {stdout}
-                                             Erro padrão: {stderr}\n""")
-                     
-
-   except mysql.connector.InterfaceError as e:
-      # print(f"Erro de interface MySQL: {e}")
-      with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-         file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de interface MySQL: {e}'\n")
+      # Aguardar a conclusão de todos os subprocessos
+      for process, idSolicitacao in processes:
+         stdout, stderr = process.communicate()
+         if process.returncode != 0:
+            with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+                  file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
+                           f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
    except mysql.connector.DatabaseError as e:
       # print(f"Erro de banco de dados MySQL: {e}")
       with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
@@ -183,6 +165,41 @@ def main():
       # print(f"Erro de conexão MySQL: {e}")
       with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
          file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de conexão MySQL: {e}'\n")
+
+
+
+def main():
+   inicio = time.time()
+   
+   try:
+      pool = mysql.connector.pooling.MySQLConnectionPool(
+         pool_name="MySqlPool",
+         pool_size=5,
+         user=os.environ['MYSQL_USER'],
+         password=os.environ['MYSQL_PASSWORD'],
+         host=os.environ['MYSQL_HOST'],
+         database=os.environ['MYSQL_DATABASE']
+      )
+
+      # Conexão inicial para popular a tabela
+      with pool.get_connection() as conexaoComBanco:
+         with conexaoComBanco.cursor() as cursor:
+               popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
+               # time.sleep(5) 
+
+      # Conexão para processar as solicitações
+      
+      while True:
+         with pool.get_connection() as conexaoComBanco:
+            with conexaoComBanco.cursor() as cursor:
+               solicitacoes = buscarSolicitacoes(cursor)
+               if not solicitacoes:
+                  break
+               processar_solicitacoes(pool, solicitacoes)
+
+   except mysql.connector.InterfaceError as e:
+      with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+         file.write(f"{datetime.datetime.now()} - Erro de interface MySQL: {e}\n")
    finally:
       with mysql.connector.connect(user=os.environ['MYSQL_USER'],
                        password=os.environ['MYSQL_PASSWORD'],
