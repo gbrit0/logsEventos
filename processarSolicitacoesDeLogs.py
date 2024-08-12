@@ -206,9 +206,9 @@ def main():
 
       # Conexão para processar as solicitações
       
-      with pool.get_connection() as conexaoComBanco:
-         with conexaoComBanco.cursor() as cursor:
-            while True:
+      while True:
+         with pool.get_connection() as conexaoComBanco:
+            with conexaoComBanco.cursor() as cursor:
                solicitacoes = buscarSolicitacoes(cursor)
                if not solicitacoes:
                   break
