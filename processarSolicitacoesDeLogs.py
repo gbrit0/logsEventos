@@ -6,7 +6,7 @@ import datetime
 import sys
 import time
 import psutil
-
+from signal import signal, SIGPIPE, SIG_DFL
 
 
 
@@ -186,6 +186,11 @@ def processar_solicitacoes(pool, solicitacoes):
 
 
 def main():
+   #Ignore SIG_PIPE and don't throw exceptions on it... (http://docs.python.org/library/signal.html)  
+   # https://www.javatpoint.com/broken-pipe-error-in-python
+   signal(SIGPIPE,SIG_DFL) 
+
+    
    inicio = time.time()
    
    try:
