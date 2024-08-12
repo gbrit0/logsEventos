@@ -201,18 +201,18 @@ def main():
       # Conexão inicial para popular a tabela
       with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
-               popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
-               time.sleep(5) 
+            popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
+            time.sleep(5) 
 
       # Conexão para processar as solicitações
       
-      # while True:
       with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
-            solicitacoes = buscarSolicitacoes(cursor)
-            # if not solicitacoes:
-               # break
-            processar_solicitacoes(pool, solicitacoes)
+            while True:
+               solicitacoes = buscarSolicitacoes(cursor)
+               if not solicitacoes:
+                  break
+               processar_solicitacoes(pool, solicitacoes)
 
    except mysql.connector.InterfaceError as e:
       with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
