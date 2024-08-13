@@ -236,8 +236,8 @@ def main():
       if e.errno == errno.EPIPE: 
          print(e)
    except mysql.connector.errors.OperationalError as e:
-      print(e)
-   finally:
+      pass
+   else:
       with mysql.connector.connect(user=os.environ['MYSQL_USER'],
                      password=os.environ['MYSQL_PASSWORD'],
                      host=os.environ['MYSQL_HOST'],
