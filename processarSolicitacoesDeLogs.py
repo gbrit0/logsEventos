@@ -7,6 +7,7 @@ import sys
 import time
 import psutil
 from signal import signal, SIGPIPE, SIG_DFL
+import errno 
 
 
 
@@ -16,8 +17,9 @@ def buscarSolicitacoes(cursor: mysql.connector.cursor):
                FROM
                   solicitacao_log
                LIMIT
-                  30
+                  10
             """
+   
    
    cursor.execute(query)
    return cursor.fetchall()
@@ -54,6 +56,7 @@ def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
                   AND cod_tipo_conexao = 1
                         """
       try:
+         conexaoComBanco.reconnect()
          cursor.execute(query)
          conexaoComBanco.commit()
       except mysql.connector.IntegrityError:
@@ -79,6 +82,7 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
                               database = os.environ['MYSQL_DATABASE']) as con:
 
          with con.cursor() as cursor:
+               con.reconnect()
                cursor.execute(sql)
                result = cursor.fetchone()
                
@@ -115,8 +119,9 @@ def processar_solicitacoes(pool, solicitacoes):
 
         with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
-                cursor.execute(deleteRow)
-                conexaoComBanco.commit()
+               conexaoComBanco.reconnect()
+               cursor.execute(deleteRow)
+               conexaoComBanco.commit()
 
         # Buscar parâmetros de comunicação
         parametrosComunicacao = f"""
@@ -130,8 +135,9 @@ def processar_solicitacoes(pool, solicitacoes):
         """
         with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
-                cursor.execute(parametrosComunicacao)
-                resultado = cursor.fetchone()
+               conexaoComBanco.reconnect()
+               cursor.execute(parametrosComunicacao)
+               resultado = cursor.fetchone()
 
         if resultado:
             host, porta, modbusId = resultado
@@ -158,7 +164,7 @@ def processar_solicitacoes(pool, solicitacoes):
         stdout, stderr = process.communicate()
         if process.returncode != 0:
             with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-                file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {idSolicitacao}\n"
+                file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
                            f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
 
 
@@ -188,7 +194,7 @@ def processar_solicitacoes(pool, solicitacoes):
 def main():
    #Ignore SIG_PIPE and don't throw exceptions on it... (http://docs.python.org/library/signal.html)  
    # https://www.javatpoint.com/broken-pipe-error-in-python
-   signal(SIGPIPE,SIG_DFL) 
+   signal(SIGPIPE,SIG_DFL)
 
     
    inicio = time.time()
@@ -196,7 +202,7 @@ def main():
    try:
       pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
-         pool_size=5,
+         pool_size=32,
          user=os.environ['MYSQL_USER'],
          password=os.environ['MYSQL_PASSWORD'],
          host=os.environ['MYSQL_HOST'],
@@ -214,6 +220,7 @@ def main():
       while True:
          with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
+               conexaoComBanco.reconnect()
                solicitacoes = buscarSolicitacoes(cursor)
                if not solicitacoes:
                   break
@@ -222,6 +229,9 @@ def main():
    except mysql.connector.InterfaceError as e:
       with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
          file.write(f"{datetime.datetime.now()} - Erro de interface MySQL: {e}\n")
+   except IOError as e: 
+    if e.errno == errno.EPIPE: 
+      print(e)
    finally:
       with mysql.connector.connect(user=os.environ['MYSQL_USER'],
                        password=os.environ['MYSQL_PASSWORD'],
@@ -229,6 +239,7 @@ def main():
                        database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             truncate = f"truncate table solicitacao_log"
+            conexaoComBanco.reconnect()
             cursor.execute(truncate)
             conexaoComBanco.commit()
 
