@@ -5,7 +5,6 @@ import subprocess
 import datetime
 import sys
 import time
-import psutil
 from signal import signal, SIGPIPE, SIG_DFL
 import errno 
 
@@ -112,19 +111,19 @@ def processar_solicitacoes(pool, solicitacoes):
     processes = []
 
     for solicitacao in solicitacoes:
-        idSolicitacao, codEquipamento, codTipoLog = solicitacao
+      idSolicitacao, codEquipamento, codTipoLog = solicitacao
 
         # Apagar a linha correspondente à solicitação
-        deleteRow = f"DELETE FROM solicitacao_log WHERE id = {idSolicitacao}"
+      deleteRow = f"DELETE FROM solicitacao_log WHERE id = {idSolicitacao}"
 
-        with pool.get_connection() as conexaoComBanco:
-            with conexaoComBanco.cursor() as cursor:
-               conexaoComBanco.reconnect()
-               cursor.execute(deleteRow)
-               conexaoComBanco.commit()
+      with pool.get_connection() as conexaoComBanco:
+         with conexaoComBanco.cursor() as cursor:
+            conexaoComBanco.reconnect()
+            cursor.execute(deleteRow)
+            conexaoComBanco.commit()
 
         # Buscar parâmetros de comunicação
-        parametrosComunicacao = f"""
+      parametrosComunicacao = f"""
             SELECT 
                host, porta, modbus_id
             FROM
@@ -132,23 +131,26 @@ def processar_solicitacoes(pool, solicitacoes):
             WHERE
                cod_equipamento = {codEquipamento}
                AND ativo = 1
-        """
-        with pool.get_connection() as conexaoComBanco:
-            with conexaoComBanco.cursor() as cursor:
-               conexaoComBanco.reconnect()
-               cursor.execute(parametrosComunicacao)
-               resultado = cursor.fetchone()
+      """
+      with pool.get_connection() as conexaoComBanco:
+         with conexaoComBanco.cursor() as cursor:
+            conexaoComBanco.reconnect()
+            cursor.execute(parametrosComunicacao)
+            resultado = cursor.fetchone()
 
-        if resultado:
-            host, porta, modbusId = resultado
-            process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
-                                        str(idSolicitacao), str(codEquipamento),
-                                        str(modbusId), host, str(porta), str(codTipoLog)],
-                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            processes.append((process, idSolicitacao))
+      if resultado:
+         host, porta, modbusId = resultado
+         process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
+                                       str(idSolicitacao), str(codEquipamento),
+                                       str(modbusId), host, str(porta), str(codTipoLog)],
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+         processes.append((process, idSolicitacao))
+         
+      time.sleep(1)
 
     # Monitorar e aguardar a conclusão de todos os subprocessos
-    for process, idSolicitacao in processes:
+      for process, idSolicitacao in processes:
+
       #   ps_process = psutil.Process(process.pid)
         
       #   while process.poll() is None:
@@ -161,11 +163,11 @@ def processar_solicitacoes(pool, solicitacoes):
       #                          f"Uso de CPU: {cpu_percent}%\n")
          
         # Após a conclusão
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
+         stdout, stderr = process.communicate()
+         if process.returncode != 0:
             with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-                file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
-                           f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
+               file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
+                        f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
 
 
    except mysql.connector.DatabaseError as e:

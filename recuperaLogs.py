@@ -361,7 +361,7 @@ def fetchLog(idSolicitacao: int,
                   nomeEvent, textEvent, date = processarRespostaModbus(idSolicitacao, res)
                
                   linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                  # if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                  if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                     #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                     #  então exibir apenas um é o suficiente.
                      # escreverLogNoBancoLinhaALinha(conexaoComBanco, 
@@ -370,7 +370,7 @@ def fetchLog(idSolicitacao: int,
                      #                               nomeEvent, textEvent, 
                      #                               date, tipoLog)
 
-                  values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
+                     values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
                   
                except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
                                                             # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
@@ -383,6 +383,10 @@ def fetchLog(idSolicitacao: int,
                except Exception as e:
                   print(f"erro ao processar resposta modbus: {e}")
                   return 0
+               
+
+               
+
             
             
                   
