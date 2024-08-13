@@ -233,8 +233,8 @@ def main():
       with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
          file.write(f"{datetime.datetime.now()} - Erro de interface MySQL: {e}\n")
    except IOError as e: 
-    if e.errno == errno.EPIPE: 
-      print(e)
+      if e.errno == errno.EPIPE: 
+         print(e)
    finally:
       with mysql.connector.connect(user=os.environ['MYSQL_USER'],
                      password=os.environ['MYSQL_PASSWORD'],
