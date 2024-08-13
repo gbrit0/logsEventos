@@ -4,7 +4,7 @@ import time, datetime
 import os
 import argparse
 import mysql.connector # type: ignore
-from memory_profiler import profile
+# from memory_profiler import profile
 
 
 def conectarComModbus(idSolicitacao: str, host: str, porta: int): #  -> socket.socket
@@ -346,9 +346,17 @@ def fetchLog(idSolicitacao: int,
          # print(f"ultimaLinha: {ultimaLinha}")
 
          if tipoLog == 1:  # Log Alarmes
-            ran = range(500, 1000)
-         else: # Log Eventos
+            if codTipoEquipamento == 88:
+               ran = range(500, 651)
+            else:
+               ran = range(500, 1000)
+         elif codTipoEquipamento == 88:
+            ran = range(151)
+         else:
+            # Log Eventos
             ran = range(500)
+
+
 
          try:
             values = []
@@ -384,11 +392,6 @@ def fetchLog(idSolicitacao: int,
                   print(f"erro ao processar resposta modbus: {e}")
                   return 0
                
-
-               
-
-            
-            
                   
          except mysql.connector.Error as e:
             print(f"erro na comunicacao com o banco de dados: {e}")
