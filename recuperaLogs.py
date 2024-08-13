@@ -120,8 +120,8 @@ def processarRespostaModbus(idSolicitacao, resp: bytes) -> str:
       
    except struct.error as e:
       # print(f"struct error: {e}")
-      with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'struct error: {e}'\n")
+      # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+      #    file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'struct error: {e}'\n")
       return (None, None, None)
    
    if data[86] == 0:
