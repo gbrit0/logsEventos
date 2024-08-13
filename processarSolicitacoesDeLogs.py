@@ -1,6 +1,7 @@
 import mysql.connector
 # from mysql.connector import pooling
 import os
+import psutil
 import subprocess
 import datetime
 import sys
@@ -151,16 +152,16 @@ def processar_solicitacoes(pool, solicitacoes):
     # Monitorar e aguardar a conclusão de todos os subprocessos
       for process, idSolicitacao in processes:
 
-      #   ps_process = psutil.Process(process.pid)
+         ps_process = psutil.Process(process.pid)
         
-      #   while process.poll() is None:
-      #       memory_info = ps_process.memory_info()
-      #       cpu_percent = ps_process.cpu_percent(interval=1)
+         while process.poll() is None:
+            memory_info = ps_process.memory_info()
+            cpu_percent = ps_process.cpu_percent(interval=1)
 
-      #       with open("logRecursosSubprocessos.txt", 'a') as log_file:
-      #           log_file.write(f"{datetime.datetime.now()} - Subprocesso ID {process.pid} "
-      #                          f"Equipamento {idSolicitacao}: Uso de memória: {memory_info.rss / 1024 ** 2} MB, "
-      #                          f"Uso de CPU: {cpu_percent}%\n")
+            with open("logRecursosSubprocessos.txt", 'a') as log_file:
+                log_file.write(f"{datetime.datetime.now()} - Subprocesso ID {process.pid} "
+                               f"Equipamento {idSolicitacao}: Uso de memória: {memory_info.rss / 1024 ** 2} MB, "
+                               f"Uso de CPU: {cpu_percent}%\n")
          
         # Após a conclusão
          stdout, stderr = process.communicate()
@@ -236,9 +237,9 @@ def main():
       print(e)
    finally:
       with mysql.connector.connect(user=os.environ['MYSQL_USER'],
-                       password=os.environ['MYSQL_PASSWORD'],
-                       host=os.environ['MYSQL_HOST'],
-                       database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
+                     password=os.environ['MYSQL_PASSWORD'],
+                     host=os.environ['MYSQL_HOST'],
+                     database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             truncate = f"truncate table solicitacao_log"
             conexaoComBanco.reconnect()
