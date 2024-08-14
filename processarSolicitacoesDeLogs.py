@@ -52,7 +52,7 @@ def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
                                  AND lt.cod_campo = 3
                                  AND TIMESTAMPDIFF(MINUTE,
                                  lt.data_cadastro,
-                                 NOW()) < 5)
+                                 NOW()) < 2)
                   AND cod_tipo_conexao = 1
                         """
       try:
