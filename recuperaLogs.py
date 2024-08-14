@@ -22,31 +22,32 @@ def conectarComModbus(idSolicitacao: str, host: str, porta: int): #  -> socket.s
       
 # @profile
 
-def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: int = 0, tipoLog: int = 0) -> bytes:
+def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: int = 0, tipoLog: int = 0, **codTipoEquipamento: int) -> bytes:
    """tipoLog= 0 para eventos ou 1 para alarmes
-      tipoLog = 3: teste de conexão e recupera modelo do controlador"""
-   if tipoLog == 1 or tipoLog == 0:
-      return struct.pack(
-         '>3H2B2H',
-         transactionId,
-         0,
-         6,
-         unitId,
-         67,
-         startingAddress,
-         84
-      )
-   else:
-      return struct.pack(
-         '>3H2B2H',
-         transactionId,
-         0,
-         6,
-         unitId,
-         4, # código da função
-         59900, # código campo
-         1
-      )
+      tipoLog = 3: teste de conexão e recupera modelo do controlador
+   """
+   
+   codFuncao = 67
+   codCampo = startingAddress
+   quantidade = 84
+
+   if codTipoEquipamento == 182:
+      quantidade = 3
+   elif tipoLog == 3:
+      codFuncao = 4
+      codCampo = 59900
+      quantidade = 1
+
+   return struct.pack(
+      '>3H2B2H',
+      transactionId,
+      0,
+      6,
+      unitId,
+      codFuncao,
+      codCampo,
+      quantidade
+   )
 
 
 def recuperarParametrosCounicacao(idSolicitacao, codEquipamento: int, conexaoComBanco, cursor) -> list:
@@ -316,8 +317,6 @@ def fetchLog(idSolicitacao: int,
              porta: int,
              tipoLog = 0):
 
-    
-   
    try:
       pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
@@ -348,10 +347,14 @@ def fetchLog(idSolicitacao: int,
          if tipoLog == 1:  # Log Alarmes
             if codTipoEquipamento == 88:
                ran = range(500, 651)
+            elif codTipoEquipamento == 182:
+               ran = range(500, 1000, 3)
             else:
                ran = range(500, 1000)
          elif codTipoEquipamento == 88:
             ran = range(151)
+         elif codTipoEquipamento == 182:
+               ran = range(0, 500, 3)
          else:
             # Log Eventos
             ran = range(500)
@@ -361,10 +364,10 @@ def fetchLog(idSolicitacao: int,
          try:
             values = []
             for startingAddress in ran:
-               req = gerarRequisicao(startingAddress,modbusId,startingAddress, tipoLog) # startingAddress é sempre o mesmo número que o transactionId
+               req = gerarRequisicao(startingAddress,modbusId,startingAddress, tipoLog, codTipoEquipamento=codTipoEquipamento) # startingAddress é sempre o mesmo número que o transactionId
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
-               # print(res)
+               print(res)
                try:
                   nomeEvent, textEvent, date = processarRespostaModbus(idSolicitacao, res)
                
@@ -379,6 +382,7 @@ def fetchLog(idSolicitacao: int,
                      #                               date, tipoLog)
 
                      values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
+                     # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date))
                   
                except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
                                                             # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
