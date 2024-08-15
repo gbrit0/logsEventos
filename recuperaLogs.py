@@ -331,33 +331,32 @@ def fetchLog(idSolicitacao: int,
       with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             codTipoEquipamento = testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta)
-         if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
-            with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+
+            if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
+               with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
                   file.write(f"{datetime.datetime.now()}       id:{id}        'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
                   return
-               
-      with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
-         with pool.get_connection() as conexaoComBanco:
-            with conexaoComBanco.cursor() as cursor:
+            else:      
                ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
 
-         if ultimaLinha is None:
-            ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
-         # print(f"ultimaLinha: {ultimaLinha}")
+               if ultimaLinha is None:
+                  ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
+               # print(f"ultimaLinha: {ultimaLinha}")
 
-         if tipoLog == 1:  # Log Alarmes
-            if codTipoEquipamento == 88:
-               ran = range(500, 651)
-            else:
-               ran = range(500, 1000)
-         elif codTipoEquipamento == 88:
-            ran = range(151)
-         else:
-            # Log Eventos
-            ran = range(500)
+               if tipoLog == 1:  # Log Alarmes
+                  if codTipoEquipamento == 88:
+                     ran = range(500, 651)
+                  else:
+                     ran = range(500, 1000)
+               elif codTipoEquipamento == 88:
+                  ran = range(151)
+               else:
+                  # Log Eventos
+                  ran = range(500)
+               
 
 
-
+      with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
          try:
             values = []
             for startingAddress in ran:
@@ -392,7 +391,7 @@ def fetchLog(idSolicitacao: int,
                   print(f"erro ao processar resposta modbus: {e}")
                   return 0
                
-                  
+               
          except mysql.connector.Error as e:
             print(f"erro na comunicacao com o banco de dados: {e}")
             return 0
