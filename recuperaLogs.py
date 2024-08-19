@@ -112,7 +112,7 @@ def recuperarParametrosCounicacao(idSolicitacao, codEquipamento: int, conexaoCom
 
 
 
-def processarRespostaModbus(idSolicitacao, resp: bytes) -> str:
+def processarRespostaModbus(codTipoEquipamento, resp: bytes) -> str:
    try:
       data = struct.unpack(
          """>3H83B30h28b""",
@@ -366,9 +366,9 @@ def fetchLog(idSolicitacao: int,
                req = gerarRequisicao(startingAddress,modbusId,startingAddress, tipoLog, codTipoEquipamento=codTipoEquipamento) # startingAddress é sempre o mesmo número que o transactionId
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
-               print(res)
+               # print(res)
                try:
-                  nomeEvent, textEvent, date = processarRespostaModbus(idSolicitacao, res)
+                  nomeEvent, textEvent, date = processarRespostaModbus(codTipoEquipamento, res)
                
                   linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
                   if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
