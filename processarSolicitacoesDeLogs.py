@@ -216,7 +216,7 @@ def main():
       with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
-            time.sleep(5) 
+            # time.sleep(5) 
 
       # Conexão para processar as solicitações
       
