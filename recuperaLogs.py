@@ -122,7 +122,7 @@ def hexParaDatetime(hex):
    diasComFracao = dias / 24
    dias = int(diasComFracao)
    horasFracionais = diasComFracao - dias
-   horas = int(horasFracionais * 24)
+   horas = int(horasFracionais * 24) - 3360
    
    segundosComFracao = int(minutosSegundos, 16) / 10
    segundos = int(segundosComFracao)
@@ -130,7 +130,7 @@ def hexParaDatetime(hex):
    minutes = segundos // 60
    segundosRestantes = segundos % 60
    
-   dataInicial = datetime.datetime(year=1781, month=8, day=7, hour=8, microsecond=1) # Adicionando 1 microssegundo para evitar 0's nesse campo e ñ bugar no banco
+   dataInicial = datetime.datetime(year=1781, month=8, day=7, hour=16, microsecond=1) # Adicionando 1 microssegundo para evitar 0's nesse campo e ñ bugar no banco
    
    dataFinal = dataInicial + datetime.timedelta(days=dias, hours=horas, minutes=minutes, seconds=segundosRestantes, microseconds=microsegundos)
    
@@ -152,7 +152,12 @@ def processarRespostaModbus(codTipoEquipamento, resp: bytes):
          # print(text)
          # print(data)
          # print(date)
-         yield [text, data, date]
+
+         if date.month == datetime.datetime.now().month:
+            yield [text, data, date]  
+            # print(f'{resp[19+i:24+i].hex()},{date}') 
+         else:
+            return
 
 
    else:
@@ -435,6 +440,7 @@ def fetchLog(idSolicitacao: int,
                      nomeEvent, textEvent, date = resposta
                   
                      linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
+                     
                      if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                        #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                        #  então exibir apenas um é o suficiente.
