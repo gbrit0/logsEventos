@@ -402,7 +402,7 @@ def fetchLog(idSolicitacao: int,
    try:
       pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
-         pool_size=5,
+         pool_size=32,
          user=os.environ['MYSQL_USER'],
          password=os.environ['MYSQL_PASSWORD'],
          host=os.environ['MYSQL_HOST'],
