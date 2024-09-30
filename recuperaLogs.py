@@ -273,8 +273,6 @@ def escreverLogNoBanco(pool, values, tipoLog):
                with conexaoComBanco.cursor() as cursor:
                   cursor.executemany(sql, values)
                   conexaoComBanco.commit()
-                  cursor.close()
-                  conexaoComBanco.close()
          break  
       except mysql.connector.errors.InternalError as e:
          tentativas += 1
@@ -409,38 +407,37 @@ def fetchLog(idSolicitacao: int,
          database=os.environ['MYSQL_DATABASE']
       )
 
-      with pool.get_connection() as conexaoComBanco:
-         with conexaoComBanco.cursor() as cursor:
-            codTipoEquipamento = testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta)
-            # print(f'codTipoEquipamento - {codTipoEquipamento}')
+      codTipoEquipamento = testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta)
+      # print(f'codTipoEquipamento - {codTipoEquipamento}')
 
-            if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
-               with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-                  file.write(f"{datetime.datetime.now()}       id:{id}        'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
-                  return
-            else:      
+      if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
+         with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+            file.write(f"{datetime.datetime.now()}       id:{id}        'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
+            return
+      else:      
+         with pool.get_connection() as conexaoComBanco:
+            with conexaoComBanco.cursor() as cursor:
                ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
-               cursor.close()
-               conexaoComBanco.close()
-               if ultimaLinha is None:
-                  ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
-            
-            # print(f"ultimaLinha: {ultimaLinha}")
 
-         if tipoLog == 1:  # Log Alarmes
-            if codTipoEquipamento == 88:
-               ran = range(500, 651)
-            elif codTipoEquipamento == 182:
-               ran = range(500, 998, 3)
-            else:
-               ran = range(500, 1000)
-         elif codTipoEquipamento == 88:
-            ran = range(151)
+      if ultimaLinha is None:
+         ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
+         
+         # print(f"ultimaLinha: {ultimaLinha}")
+
+      if tipoLog == 1:  # Log Alarmes
+         if codTipoEquipamento == 88:
+            ran = range(500, 651)
          elif codTipoEquipamento == 182:
-               ran = range(0, 500, 3)
+            ran = range(500, 998, 3)
          else:
-            # Log Eventos
-            ran = range(500)
+            ran = range(500, 1000)
+      elif codTipoEquipamento == 88:
+         ran = range(151)
+      elif codTipoEquipamento == 182:
+            ran = range(0, 500, 3)
+      else:
+         # Log Eventos
+         ran = range(500)
 
          # print(f'ran - {ran}')
 

@@ -8,6 +8,7 @@ import sys
 import time
 from signal import signal, SIGPIPE, SIG_DFL
 import errno 
+from recuperaLogs import main as recuperaLogs
 
 
 
@@ -17,7 +18,7 @@ def buscarSolicitacoes(cursor: mysql.connector.cursor):
                FROM
                   solicitacao_log
                LIMIT
-                  30
+                  15
             """
    
    
@@ -56,7 +57,7 @@ def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
                   AND cod_tipo_conexao = 1
                         """
       try:
-         conexaoComBanco.reconnect()
+         # conexaoComBanco.reconnect()
          cursor.execute(query)
          conexaoComBanco.commit()
       except mysql.connector.IntegrityError:
@@ -82,11 +83,13 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
                               database = os.environ['MYSQL_DATABASE']) as con:
 
          with con.cursor() as cursor:
-               con.reconnect()
+               # con.reconnect()
                cursor.execute(sql)
                result = cursor.fetchone()
-               cursor.close()
-               con.close()
+               # cursor.close()
+               # con.close()
+               
+               
                return result[0], result[1], result[2], result[3]
          
    except mysql.connector.InterfaceError as e:
@@ -119,11 +122,11 @@ def processar_solicitacoes(pool, solicitacoes):
 
          with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
-               conexaoComBanco.reconnect()
+               # conexaoComBanco.reconnect()
                cursor.execute(deleteRow)
                conexaoComBanco.commit()
-               cursor.close()
-               conexaoComBanco.close()
+               # cursor.close()
+               # conexaoComBanco.close()
 
          # Buscar parâmetros de comunicação
          parametrosComunicacao = f"""
@@ -137,42 +140,44 @@ def processar_solicitacoes(pool, solicitacoes):
          """
          with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
-               conexaoComBanco.reconnect()
+               # conexaoComBanco.reconnect()
                cursor.execute(parametrosComunicacao)
                resultado = cursor.fetchone()
-               cursor.close()
-               conexaoComBanco.close()
+               # cursor.close()
+               # conexaoComBanco.close()
 
          if resultado:
             host, porta, modbusId = resultado
-            process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
-                                          str(idSolicitacao), str(codEquipamento),
-                                          str(modbusId), host, str(porta), str(codTipoLog)],
-                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            processes.append((process, idSolicitacao))
+            recuperaLogs(str(idSolicitacao), str(codEquipamento),
+                         str(modbusId), host, str(porta), str(codTipoLog))
+            # process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
+                                          # str(idSolicitacao), str(codEquipamento),
+                                          # str(modbusId), host, str(porta), str(codTipoLog)],
+                                          # stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            # processes.append((process, idSolicitacao))
             
          time.sleep(1)
 
       # Monitorar e aguardar a conclusão de todos os subprocessos
-      for process, idSolicitacao in processes:
+      # for process, idSolicitacao in processes:
 
-         # ps_process = psutil.Process(process.pid)
+      #    # ps_process = psutil.Process(process.pid)
          
-         # while process.poll() is None:
-         #    memory_info = ps_process.memory_info()
-         #    cpu_percent = ps_process.cpu_percent(interval=1)
+      #    # while process.poll() is None:
+      #    #    memory_info = ps_process.memory_info()
+      #    #    cpu_percent = ps_process.cpu_percent(interval=1)
 
-         #    with open("logRecursosSubprocessos.txt", 'a') as log_file:
-         #        log_file.write(f"{datetime.datetime.now()} - Subprocesso ID {process.pid} "
-         #                       f"Equipamento {idSolicitacao}: Uso de memória: {memory_info.rss / 1024 ** 2} MB, "
-         #                       f"Uso de CPU: {cpu_percent}%\n")
+      #    #    with open("logRecursosSubprocessos.txt", 'a') as log_file:
+      #    #        log_file.write(f"{datetime.datetime.now()} - Subprocesso ID {process.pid} "
+      #    #                       f"Equipamento {idSolicitacao}: Uso de memória: {memory_info.rss / 1024 ** 2} MB, "
+      #    #                       f"Uso de CPU: {cpu_percent}%\n")
          
-         # Após a conclusão
-         stdout, stderr = process.communicate()
-         if process.returncode != 0:
-            with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-               file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
-                        f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
+      #    # Após a conclusão
+      #    stdout, stderr = process.communicate()
+      #    if process.returncode != 0:
+      #       with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+      #          file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
+      #                   f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
 
 
    except mysql.connector.DatabaseError as e:
@@ -220,8 +225,8 @@ def main():
       with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
-            cursor.close()
-            conexaoComBanco.close()
+            # cursor.close()
+            # conexaoComBanco.close()
             # time.sleep(5) 
 
       # Conexão para processar as solicitações
@@ -229,10 +234,10 @@ def main():
       while True:
          with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
-               conexaoComBanco.reconnect()
+               # conexaoComBanco.reconnect()
                solicitacoes = buscarSolicitacoes(cursor)
-               cursor.close()
-               conexaoComBanco.close()
+               # cursor.close()
+               # conexaoComBanco.close()
                if not solicitacoes:
                   break
                processar_solicitacoes(pool, solicitacoes)
@@ -249,11 +254,10 @@ def main():
       with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             truncate = f"truncate table solicitacao_log"
-            conexaoComBanco.reconnect()
+            # conexaoComBanco.reconnect()
             cursor.execute(truncate)
             conexaoComBanco.commit()
-            cursor.close()
-            conexaoComBanco.close()
+            # conexaoComBanco.close()
 
 
    fim = time.time()
