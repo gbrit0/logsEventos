@@ -174,7 +174,7 @@ def processarRespostaModbus(codTipoEquipamento, resp: bytes):
          # print(date)
          if date.month == datetime.datetime.now().month:
             yield [text, data, date]  
-            # print(f'{resp[19+i:24+i].hex()},{date}') 
+            print(f'{resp[19+i:24+i].hex()},{date}') 
          else:
             return
 
