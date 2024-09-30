@@ -273,6 +273,8 @@ def escreverLogNoBanco(pool, values, tipoLog):
                with conexaoComBanco.cursor() as cursor:
                   cursor.executemany(sql, values)
                   conexaoComBanco.commit()
+                  cursor.close()
+                  conexaoComBanco.close()
          break  
       except mysql.connector.errors.InternalError as e:
          tentativas += 1
@@ -418,7 +420,8 @@ def fetchLog(idSolicitacao: int,
                   return
             else:      
                ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
-
+               cursor.close()
+               conexaoComBanco.close()
                if ultimaLinha is None:
                   ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
             
