@@ -86,7 +86,8 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
                cursor.execute(sql)
                result = cursor.fetchone()
                
-               
+               cursor.close()
+               con.close()
                return result[0], result[1], result[2], result[3]
          
    except mysql.connector.InterfaceError as e:
@@ -122,6 +123,8 @@ def processar_solicitacoes(pool, solicitacoes):
                conexaoComBanco.reconnect()
                cursor.execute(deleteRow)
                conexaoComBanco.commit()
+               cursor.close()
+               conexaoComBanco.close()
 
          # Buscar parâmetros de comunicação
          parametrosComunicacao = f"""
@@ -138,6 +141,8 @@ def processar_solicitacoes(pool, solicitacoes):
                conexaoComBanco.reconnect()
                cursor.execute(parametrosComunicacao)
                resultado = cursor.fetchone()
+               cursor.close()
+               conexaoComBanco.close()
 
          if resultado:
             host, porta, modbusId = resultado
@@ -216,6 +221,8 @@ def main():
       with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
+            cursor.close()
+            conexaoComBanco.close()
             # time.sleep(5) 
 
       # Conexão para processar as solicitações
@@ -228,6 +235,8 @@ def main():
                if not solicitacoes:
                   break
                processar_solicitacoes(pool, solicitacoes)
+               cursor.close()
+               conexaoComBanco.close()
 
    except mysql.connector.InterfaceError as e:
       with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
@@ -247,6 +256,8 @@ def main():
             conexaoComBanco.reconnect()
             cursor.execute(truncate)
             conexaoComBanco.commit()
+            cursor.close()
+            conexaoComBanco.close()
 
 
    fim = time.time()
