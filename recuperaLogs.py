@@ -118,19 +118,19 @@ def hexParaDatetime(hex):
    diasHoras = hex[:6]  
    minutosSegundos = hex[6:] 
    
-   dias = int(diasHoras, 16) # + 8 --> somando 8 na data inicial
+   dias = int(diasHoras, 16)  # --> somando 8 na data inicial
    diasComFracao = dias / 24
    dias = int(diasComFracao)
    horasFracionais = diasComFracao - dias
-   horas = int(horasFracionais * 24)
+   horas = int(horasFracionais * 24) - 3360
    
    segundosComFracao = int(minutosSegundos, 16) / 10
    segundos = int(segundosComFracao)
-   microsegundos = int((segundosComFracao - segundos) * 1000000)
+   microsegundos = int((segundosComFracao - segundos) * 1_000_000)
    minutes = segundos // 60
    segundosRestantes = segundos % 60
    
-   dataInicial = datetime.datetime(year=1781, month=8, day=7, hour=8, microsecond=1) # Adicionando 1 microssegundo para evitar 0's nesse campo e ñ bugar no banco
+   dataInicial = datetime.datetime(year=1781, month=8, day=7, hour=16, microsecond=1) # Adicionando 1 microssegundo para evitar 0's nesse campo e ñ bugar no banco
    
    dataFinal = dataInicial + datetime.timedelta(days=dias, hours=horas, minutes=minutes, seconds=segundosRestantes, microseconds=microsegundos)
    
@@ -139,9 +139,29 @@ def hexParaDatetime(hex):
 
 def processarRespostaModbus(codTipoEquipamento, resp: bytes):
    # print(f'tamRes:{len(resp)}')
+   # print(resp[:76].hex())
+   # print(resp[76:152].hex())
+   # print(resp[152:].hex())
+
+   # a = struct.unpack(
+   #    '>18B5L19H',
+   #    resp[:76]
+   # )
+   # print(a)
+   # b = struct.unpack(
+   #    '>18B5L19H',
+   #    resp[76:152]
+   # )
+   # print(b)
+   # c = struct.unpack(
+   #    '>18B5L19H',
+   #    resp[152:]
+   # )
+   # print(c)
    if codTipoEquipamento == 182:
       
       for i in range(0,228,76):
+         # print(resp[i:76+i].hex())
          text = extrair_texto(resp[0+i:19+i], codTipoEquipamento)
          data = struct.unpack(
             '>26h',
@@ -152,7 +172,11 @@ def processarRespostaModbus(codTipoEquipamento, resp: bytes):
          # print(text)
          # print(data)
          # print(date)
-         yield [text, data, date]
+         if date.month == datetime.datetime.now().month:
+            yield [text, data, date]  
+            print(f'{resp[19+i:24+i].hex()},{date}') 
+         else:
+            return
 
 
    else:
@@ -186,11 +210,14 @@ def extrair_texto(caracteres, codTipoEquipamento):
    if codTipoEquipamento == 182:
 
       while i < len(caracteres):
+         try:   
             if caracteres[i] == 0x20 and caracteres[i + 1] == 0x20:
                break
             if caracteres[i] != 0x00:
                texto.append(chr(caracteres[i]))
             i += 1
+         except IndexError:
+            break
 
    else:
 
@@ -401,7 +428,7 @@ def fetchLog(idSolicitacao: int,
             if codTipoEquipamento == 88:
                ran = range(500, 651)
             elif codTipoEquipamento == 182:
-               ran = range(500, 1000, 3)
+               ran = range(500, 998, 3)
             else:
                ran = range(500, 1000)
          elif codTipoEquipamento == 88:
@@ -417,52 +444,104 @@ def fetchLog(idSolicitacao: int,
       with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
          try:
             values = []
+            
+            if tipoLog == 0:
+               registerValue = 0
+            elif tipoLog == 1:
+               registerValue = 1
+               
+            req = struct.pack(
+                  '>3H2B2HBH',
+                  0, #transaction Id
+                  0, # protocol id
+                  9, # length
+                  18, #unit Id
+                  16, # function code (16)
+                  58900, # reference number
+                  1, # word count
+                  2, #byte count
+                  registerValue 
+               )
+
+            conexaoComModbus.send(req)
+            res = conexaoComModbus.recv(1024)
+
+            assert res == b'\x00\x00\x00\x00\x00\x06\x12\x10\xe6\x14\x00\x01'
+
             for startingAddress in ran:
                req = gerarRequisicao(startingAddress,modbusId,startingAddress, tipoLog,codTipoEquipamento ) # startingAddress é sempre o mesmo número que o transactionId
                # print(f'requisição {startingAddress} - {req.hex()}')
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
                # print(f'res - {res}')
+               if codTipoEquipamento == 182:
+                  respostas = processarRespostaModbus(codTipoEquipamento, res[9:])
+                  # print(res.hex())
 
-               respostas = processarRespostaModbus(codTipoEquipamento, res[9:])
-               # print(respostas)
+                  try:
+                     for resposta in respostas:
+                        # print(f'resposta:{resposta}\n')
+                        
+                        nomeEvent, textEvent, date = resposta
+                        # print(f"nomeEvent - {nomeEvent}")
+                        # print(f"textEvente - {textEvent}")
+                        # print(f"dataEvente - {date}")
+                        
+                        values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date)))
+                        # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date))
+                     
+                        linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
+                        if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                                                                                          #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
+                                                                                          #  então exibir apenas um é o suficiente.
+                           values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
+                           # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date))
+                        
+                  except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
+                                                               # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
+                     print(f"Erro de integridade MySQL: {e}")
+                     with open("logRecuperaLogs.txt", 'a') as file:
+                        file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
+                  except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
+                     # print(f"type error: {e}")
+                     return 1
+                  except Exception as e:
+                     print(f"erro ao processar resposta modbus: {e}")
+                     return 0
+               
+               else:
+                  respostas = processarRespostaModbus(codTipoEquipamento, res)
+                  # print(respostas)
 
-               try:
-                  for resposta in respostas:
-                     # print(f'resposta:{resposta}')
-
-
-                     nomeEvent, textEvent, date = resposta
-                  
-                     linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                     if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                  try:
+                     for resposta in respostas:
+                        # print(f'resposta:{resposta}')
+                        
+                        nomeEvent, textEvent, date = resposta
+                        # print(f"nomeEvent - {nomeEvent}")
+                        # print(f"textEvente - {textEvent}")
+                        # print(f"dataEvente - {date}")
+                     
+                        linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
+                        if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                        #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                        #  então exibir apenas um é o suficiente.
-                        # escreverLogNoBancoLinhaALinha(conexaoComBanco, 
-                        #                               cursor, codEquipamento, 
-                        #                               codTipoEquipamento, 
-                        #                               nomeEvent, textEvent, 
-                        #                               date, tipoLog)
-                        if codTipoEquipamento == 182:
-                           values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date)))
-                           # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date))
-                        else:
                            values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
                            # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date))
                      
-               except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
-                                                            # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
-                  print(f"Erro de integridade MySQL: {e}")
-                  with open("logRecuperaLogs.txt", 'a') as file:
-                     file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
-               except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
-                  # print(f"type error: {e}")
-                  return 1
-               except Exception as e:
-                  print(f"erro ao processar resposta modbus: {e}")
-                  return 0
+                  except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
+                                                               # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
+                     print(f"Erro de integridade MySQL: {e}")
+                     with open("logRecuperaLogs.txt", 'a') as file:
+                        file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
+                  except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
+                     # print(f"type error: {e}")
+                     return 1
+                  except Exception as e:
+                     print(f"erro ao processar resposta modbus: {e.with_traceback()}")
+                     return 0
                
-               
+
          except mysql.connector.Error as e:
             print(f"erro na comunicacao com o banco de dados: {e}")
             return 0
