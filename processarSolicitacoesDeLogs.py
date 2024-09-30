@@ -85,6 +85,8 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
                con.reconnect()
                cursor.execute(sql)
                result = cursor.fetchone()
+               cursor.close()
+               con.close()
                
                cursor.close()
                con.close()
@@ -142,7 +144,7 @@ def processar_solicitacoes(pool, solicitacoes):
                cursor.execute(parametrosComunicacao)
                resultado = cursor.fetchone()
                cursor.close()
-               conexaoComBanco.close()
+               conexaoComBanco.close
 
          if resultado:
             host, porta, modbusId = resultado
@@ -223,6 +225,8 @@ def main():
             popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
             cursor.close()
             conexaoComBanco.close()
+            cursor.close()
+            conexaoComBanco.close()
             # time.sleep(5) 
 
       # Conexão para processar as solicitações
@@ -232,6 +236,8 @@ def main():
             with conexaoComBanco.cursor() as cursor:
                conexaoComBanco.reconnect()
                solicitacoes = buscarSolicitacoes(cursor)
+               cursor.close()
+               conexaoComBanco.close()
                if not solicitacoes:
                   break
                processar_solicitacoes(pool, solicitacoes)
@@ -247,15 +253,14 @@ def main():
    except mysql.connector.errors.OperationalError as e:
       pass
    finally:
-      with mysql.connector.connect(user=os.environ['MYSQL_USER'],
-                     password=os.environ['MYSQL_PASSWORD'],
-                     host=os.environ['MYSQL_HOST'],
-                     database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
+      with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             truncate = f"truncate table solicitacao_log"
             conexaoComBanco.reconnect()
             cursor.execute(truncate)
             conexaoComBanco.commit()
+            cursor.close()
+            conexaoComBanco.close()
             cursor.close()
             conexaoComBanco.close()
 
