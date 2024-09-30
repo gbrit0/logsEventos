@@ -7,3 +7,4 @@ logRecuperaLogs.txt
 testes.py
 *.log
 logRecursosSubprocessos.txt
+.vscode/
