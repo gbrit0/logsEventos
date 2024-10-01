@@ -112,7 +112,7 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
 def processar_solicitacoes(pool, solicitacoes):
    try:
       
-      processes = []
+      # processes = []
 
       for solicitacao in solicitacoes:
          idSolicitacao, codEquipamento, codTipoLog = solicitacao

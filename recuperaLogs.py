@@ -480,7 +480,7 @@ def fetchLog(idSolicitacao: int,
 
                   try:
                      for resposta in respostas:
-                        # print(f'resposta:{resposta}\n')
+                        print(f'resposta:{resposta}\n')
                         
                         nomeEvent, textEvent, date = resposta
                         # print(f"nomeEvent - {nomeEvent}")
@@ -510,14 +510,14 @@ def fetchLog(idSolicitacao: int,
                      return 0
                
                else:
-                  respostas = processarRespostaModbus(codTipoEquipamento, res)
+                  # respostas = processarRespostaModbus(codTipoEquipamento, res)
                   # print(respostas)
 
                   try:
-                     for resposta in respostas:
+                     # for resposta in respostas:
                         # print(f'resposta:{resposta}')
                         
-                        nomeEvent, textEvent, date = resposta
+                        nomeEvent, textEvent, date = processarRespostaModbus(codTipoEquipamento, res)
                         # print(f"nomeEvent - {nomeEvent}")
                         # print(f"textEvente - {textEvent}")
                         # print(f"dataEvente - {date}")
