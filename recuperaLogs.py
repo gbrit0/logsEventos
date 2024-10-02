@@ -33,7 +33,7 @@ def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: in
 
    if codTipoEquipamento == 182:
       quantidade = 3
-   elif tipoLog == 3:
+   if tipoLog == 3:
       codFuncao = 4
       codCampo = 59900
       quantidade = 1
@@ -113,28 +113,45 @@ def recuperarParametrosCounicacao(idSolicitacao, codEquipamento: int, conexaoCom
 
 
 def processarRespostaModbus(codTipoEquipamento, resp: bytes) -> str:
-   try:
-      data = struct.unpack(
-         """>3H83B30h28b""",
-         resp
-      )
+   if codTipoEquipamento == 182:
       
-   except struct.error as e:
-      # print(f"struct error: {e}")
-      # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-      #    file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'struct error: {e}'\n")
-      return (None, None, None)
-   
-   if data[86] == 0:
-      return (None, None, None)
+      for i in range(0,228,76):
+         text = extrair_texto(resp[0+i:19+i])
+         data = struct.unpack(
+            '>26h',
+            resp[24+i:76+i]
+         )
+         date = resp[19+i:24+i].hex()
+         date = hexParaDatetime(date)
+         # print(text)
+         # print(data)
+         # print(date)
+         yield [text, data, date]
 
-   text =  data[6:86]
-   text = extrair_texto(text)
 
-   date = datetime.datetime(year=data[86], month=data[87], day=data[88], 
-                           hour=data[89], minute=data[90], second=data[91], microsecond=data[92]*1000)
-   # print(text, data, date)
-   return [text, data, date]
+   else:
+      try:
+         data = struct.unpack(
+            """>3H83B30h28b""",
+            resp
+         )
+         
+      except struct.error as e:
+         # print(f"struct error: {e}")
+         # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+         #    file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'struct error: {e}'\n")
+         return (None, None, None)
+      
+      if data[86] == 0:
+         return (None, None, None)
+
+      text =  data[6:86]
+      text = extrair_texto(text, codTipoEquipamento)
+
+      date = datetime.datetime(year=data[86], month=data[87], day=data[88], 
+                              hour=data[89], minute=data[90], second=data[91], microsecond=data[92]*1000)
+      # print(text, data, date)
+      return [text, data, date]
 
 def extrair_texto(caracteres):
     texto = []
@@ -367,22 +384,26 @@ def fetchLog(idSolicitacao: int,
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
                # print(res)
-               try:
-                  nomeEvent, textEvent, date = processarRespostaModbus(codTipoEquipamento, res)
-               
-                  linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                  if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
-                                                                                    #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
-                                                                                    #  então exibir apenas um é o suficiente.
-                     # escreverLogNoBancoLinhaALinha(conexaoComBanco, 
-                     #                               cursor, codEquipamento, 
-                     #                               codTipoEquipamento, 
-                     #                               nomeEvent, textEvent, 
-                     #                               date, tipoLog)
 
-                     values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
-                     # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date))
+               respostas = processarRespostaModbus(codTipoEquipamento, res)
+
+               try:
+                  for resposta in respostas:
+                     nomeEvent, textEvent, date = resposta
                   
+                     linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
+                     if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                                                                                       #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
+                                                                                       #  então exibir apenas um é o suficiente.
+                        # escreverLogNoBancoLinhaALinha(conexaoComBanco, 
+                        #                               cursor, codEquipamento, 
+                        #                               codTipoEquipamento, 
+                        #                               nomeEvent, textEvent, 
+                        #                               date, tipoLog)
+
+                        values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
+                        # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date))
+                     
                except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
                                                             # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
                   print(f"Erro de integridade MySQL: {e}")
@@ -423,6 +444,29 @@ def buscarSolicitacoes(cursor: mysql.connector.cursor):
    
    cursor.execute(query)
    return cursor.fetchall()
+
+
+def hexParaDatetime(hex):
+   diasHoras = hex[:6]  
+   minutosSegundos = hex[6:] 
+   
+   dias = int(diasHoras, 16) # + 8 --> somando 8 na data inicial
+   diasComFracao = dias / 24
+   dias = int(diasComFracao)
+   horasFracionais = diasComFracao - dias
+   horas = int(horasFracionais * 24)
+   
+   segundosComFracao = int(minutosSegundos, 16) / 10
+   segundos = int(segundosComFracao)
+   microsegundos = int((segundosComFracao - segundos) * 1000000)
+   minutes = segundos // 60
+   segundosRestantes = segundos % 60
+   
+   dataInicial = datetime.datetime(year=1781, month=8, day=7, hour=8, microsecond=1) # Adicionando 1 microssegundo para evitar 0's nesse campo e ñ bugar no banco
+   
+   dataFinal = dataInicial + datetime.timedelta(days=dias, hours=horas, minutes=minutes, seconds=segundosRestantes, microseconds=microsegundos)
+   
+   return dataFinal
 
 
 def main(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog): # idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog
