@@ -4,13 +4,15 @@ import os
 import psutil
 import subprocess
 import datetime
-import sys
+import sys, errno 
 import time
 from signal import signal, SIGPIPE, SIG_DFL
-import errno 
+
 from recuperaLogs import main as recuperaLogs
 
-
+#Ignore SIG_PIPE and don't throw exceptions on it... (http://docs.python.org/library/signal.html)  
+   # https://www.javatpoint.com/broken-pipe-error-in-python
+signal(SIGPIPE,SIG_DFL)
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
    query = f"""SELECT
@@ -204,11 +206,6 @@ def processar_solicitacoes(pool, solicitacoes):
 
 
 def main():
-   #Ignore SIG_PIPE and don't throw exceptions on it... (http://docs.python.org/library/signal.html)  
-   # https://www.javatpoint.com/broken-pipe-error-in-python
-   signal(SIGPIPE,SIG_DFL)
-
-    
    inicio = time.time()
    
    try:
@@ -227,7 +224,7 @@ def main():
             popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
             # cursor.close()
             # conexaoComBanco.close()
-            # time.sleep(5) 
+            time.sleep(5) 
 
       # Conexão para processar as solicitações
       
@@ -247,7 +244,7 @@ def main():
          file.write(f"{datetime.datetime.now()} - Erro de interface MySQL: {e}\n")
    except IOError as e: 
       if e.errno == errno.EPIPE: 
-         print(e)
+         print(f"IOError: {e}")
    except mysql.connector.errors.OperationalError as e:
       pass
    finally:
