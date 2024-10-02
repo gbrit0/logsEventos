@@ -170,7 +170,7 @@ def processarRespostaModbus(codTipoEquipamento, resp: bytes):
 
    else:
       try:
-         print(resp.hex())
+         # print(resp.hex())
          data = struct.unpack(
             """>3H83B30h28b""",
             resp
@@ -462,32 +462,32 @@ def fetchLog(idSolicitacao: int,
             values = []
             
             # if tipoLog == 0:
-            #    registerValue = 0
-            # elif tipoLog == 1:
-            #    registerValue = 1
+            registerValue = 0
+            if tipoLog == 1:
+               registerValue = 1
                
-            # req = struct.pack(
-            #       '>3H2B2HBH',
-            #       0, #transaction Id
-            #       0, # protocol id
-            #       9, # length
-            #       18, #unit Id
-            #       16, # function code (16)
-            #       58900, # reference number
-            #       1, # word count
-            #       2, #byte count
-            #       registerValue 
-            #    )
+            req = struct.pack(
+                  '>3H2B2HBH',
+                  0, #transaction Id
+                  0, # protocol id
+                  9, # length
+                  18, #unit Id
+                  16, # function code (16)
+                  58900, # reference number
+                  1, # word count
+                  2, #byte count
+                  registerValue 
+               )
 
-            # conexaoComModbus.send(req)
-            # res = conexaoComModbus.recv(1024)
+            conexaoComModbus.send(req)
+            res = conexaoComModbus.recv(1024)
             # print(f"Len res = {len(res)}")
 
-            # assert res == b'\x00\x00\x00\x00\x00\x06\x12\x10\xe6\x14\x00\x01'
+            assert res == b'\x00\x00\x00\x00\x00\x06\x12\x10\xe6\x14\x00\x01'
 
             for startingAddress in ran:
                req = gerarRequisicao(startingAddress,modbusId,startingAddress, tipoLog,codTipoEquipamento ) # startingAddress é sempre o mesmo número que o transactionId
-               print(f'requisição {startingAddress} - {req.hex()}')
+               # print(f'requisição {startingAddress} - {req.hex()}')
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
                # print(f'res - {res}')
