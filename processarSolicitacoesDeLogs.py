@@ -19,6 +19,8 @@ def buscarSolicitacoes(cursor: mysql.connector.cursor):
                   *
                FROM
                   solicitacao_log
+               ORDER BY
+                  id
                LIMIT
                   15
             """
@@ -150,12 +152,14 @@ def processar_solicitacoes(pool, solicitacoes):
 
          if resultado:
             host, porta, modbusId = resultado
+            
             recuperaLogs(str(idSolicitacao), str(codEquipamento),
                          str(modbusId), host, str(porta), str(codTipoLog))
+            
             # process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
-                                          # str(idSolicitacao), str(codEquipamento),
-                                          # str(modbusId), host, str(porta), str(codTipoLog)],
-                                          # stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            #                               str(idSolicitacao), str(codEquipamento),
+            #                               str(modbusId), host, str(porta), str(codTipoLog)],
+            #                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             # processes.append((process, idSolicitacao))
             
          time.sleep(1)
@@ -224,18 +228,16 @@ def main():
             popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
             # cursor.close()
             # conexaoComBanco.close()
-            time.sleep(5) 
+            # time.sleep(1) 
 
-      # Conexão para processar as solicitações
-      
+
       while True:
          with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
-               # conexaoComBanco.reconnect()
                solicitacoes = buscarSolicitacoes(cursor)
-               # cursor.close()
-               # conexaoComBanco.close()
-               if not solicitacoes:
+               if solicitacoes == []:
+                  # Se não houverem solicitações, espera um tempo antes de tentar novamente
+                  time.sleep(1)
                   break
                processar_solicitacoes(pool, solicitacoes)
 
@@ -251,10 +253,8 @@ def main():
       with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             truncate = f"truncate table solicitacao_log"
-            # conexaoComBanco.reconnect()
             cursor.execute(truncate)
             conexaoComBanco.commit()
-            # conexaoComBanco.close()
 
 
    fim = time.time()

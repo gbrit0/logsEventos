@@ -11,14 +11,14 @@ import mysql.connector # type: ignore
 def conectarComModbus(idSolicitacao: str, host: str, porta: int): #  -> socket.socket
    try:
       con = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      con.settimeout(100)
+      con.settimeout(30)
       # print(f"host: {host} {type(host)}")
       # print(f"porta: {porta} {type(porta)}")
       con.connect((host, int(porta)))
       # print("Conexão com o Modbus estabelecida")
    except TimeoutError as e:
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'Erro de conexão com Modbus: {e}'\n")
+         file.write(f"{datetime.datetime.now()} {idSolicitacao} Timeout em conectarComModbus: {e}")
       # print(f"Erro de conexão com Modbus: {e}")
       return
    except OSError as e:
@@ -40,7 +40,7 @@ def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: in
    
    # print(f'geraRequisicao codTipoEquipamento: {codTipoEquipamento}')
 
-   if codTipoEquipamento == 182:
+   if codTipoEquipamento == 182 or codTipoEquipamento == 93:
       quantidade = 3
    elif tipoLog == 3:
       codFuncao = 4
@@ -130,7 +130,7 @@ def hexParaDatetime(hex):
    diasComFracao = dias / 24
    dias = int(diasComFracao)
    horasFracionais = diasComFracao - dias
-   horas = int(horasFracionais * 24) - 3360
+   horas = int(horasFracionais * 24)
    
    segundosComFracao = int(minutosSegundos, 16) / 10
    segundos = int(segundosComFracao)
@@ -138,29 +138,36 @@ def hexParaDatetime(hex):
    minutes = segundos // 60
    segundosRestantes = segundos % 60
    
-   dataInicial = datetime.datetime(year=1781, month=8, day=7, hour=16, microsecond=1) # Adicionando 1 microssegundo para evitar 0's nesse campo e ñ bugar no banco
+   dataInicial = datetime.datetime(year=1780, month=datetime.datetime.now().month + 1 , day=1,  microsecond=1) # Adicionando 1 microssegundo para evitar 0's nesse campo e ñ bugar no banco
    
-   dataFinal = dataInicial + datetime.timedelta(days=dias, hours=horas, minutes=minutes, seconds=segundosRestantes, microseconds=microsegundos)
+   dataFinal = dataInicial + datetime.timedelta(days=dias-1, hours=horas, minutes=minutes, seconds=segundosRestantes, microseconds=microsegundos)
    
    return dataFinal
 
 
 def processarRespostaModbus(codTipoEquipamento, resp: bytes):
-   
-   if codTipoEquipamento == 182:
-      
+   # print("Entrando em processarRespostaModbus") 
+   if codTipoEquipamento == 182 or codTipoEquipamento == 93:
+      # print("Entrou no loop if codTipoEquipamento == 182 or codTipoEquipamento == 93...")
+      # j = 1
       for i in range(0,228,76):
+         # j+=1
+         # print(f"{j}ª vez no loop")
          # print(resp[i:76+i].hex())
          text = extrair_texto(resp[0+i:19+i], codTipoEquipamento)
+         # print("saiu de extrair texto")
          data = struct.unpack(
             '>26h',
             resp[24+i:76+i]
          )
+         # print("data unpacked")
          date = resp[19+i:24+i].hex()
          date = hexParaDatetime(date)
-         # print(text)
-         # print(data)
-         # print(date)
+         # print(f"text: {text}")
+         # print(f"data: {data}")
+         # print(f"date month: {date.month}")
+         # print(f"datetime.now().month: {datetime.datetime.now().month}")
+         
          if date.month == datetime.datetime.now().month:
             yield [text, data, date]  
             # print(f'{resp[19+i:24+i].hex()},{date}') 
@@ -201,13 +208,13 @@ def processarRespostaModbus(codTipoEquipamento, resp: bytes):
 def extrair_texto(caracteres, codTipoEquipamento):
    texto = []
    i = 0
-   if codTipoEquipamento == 182:
+   if codTipoEquipamento == 182 or codTipoEquipamento == 93:
 
       while i < len(caracteres):
          try:   
             if caracteres[i] == 0x20 and caracteres[i + 1] == 0x20:
                break
-            if caracteres[i] != 0x00:
+            if caracteres[i] != 0x00 and caracteres[i] != 0x23:
                texto.append(chr(caracteres[i]))
             i += 1
          except IndexError:
@@ -244,7 +251,7 @@ def escreverLogNoBancoLinhaALinha(conexaoComBanco, cursor, codEquipamento, codTi
       conexaoComBanco.commit()
       
    except mysql.connector.Error as e:
-      print(f"erro de conexao MySQL: {e}")
+      print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} erro de conexao MySQL: {e}")
 
 
 
@@ -282,7 +289,7 @@ def escreverLogNoBanco(pool, values, tipoLog):
          else: 
             raise e
       except Exception as e:
-         print(f"Erro em escreverLogNoBanco: {e}")
+         print(f"{datetime.datetime.now()} Erro em escreverLogNoBanco: {e}")
       
       
 
@@ -400,10 +407,10 @@ def testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta:int):
          # print(f"Saindo de testaConexaoModbus...")
          return codTipoEquipamento
    except TimeoutError as e:
-      pass
+      print(f"Timeout Error em testaConexaoModbusERecuperaTipoEquipamento")
    except Exception as e:
       print(f"Erro em testaConexaoModbusERecuperaTipoEquipamento: {e, traceback.format_exc()}")
-      return 0
+      return
 
 
 def fetchLog(idSolicitacao: int,
@@ -443,13 +450,13 @@ def fetchLog(idSolicitacao: int,
       if tipoLog == 1:  # Log Alarmes
          if codTipoEquipamento == 88:
             ran = range(500, 651)
-         elif codTipoEquipamento == 182:
+         elif codTipoEquipamento == 182 or codTipoEquipamento == 93:
             ran = range(500, 998, 3)
          else:
             ran = range(500, 1000)
       elif codTipoEquipamento == 88:
          ran = range(151)
-      elif codTipoEquipamento == 182:
+      elif codTipoEquipamento == 182 or codTipoEquipamento == 93:
             ran = range(0, 500, 3)
       else:
          # Log Eventos
@@ -491,18 +498,18 @@ def fetchLog(idSolicitacao: int,
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
                # print(f'res - {res}')
-               if codTipoEquipamento == 182:
+               if codTipoEquipamento == 182 or codTipoEquipamento == 93:
                   respostas = processarRespostaModbus(codTipoEquipamento, res[9:])
-                  # print(f"respostas: {respostas}\n")
+                  # print(f"respostas: {respostas}")
 
                   try:
                      for resposta in respostas:
-                        # print(f'resposta:{resposta}\n')
+                        # print(f'resposta:{resposta}')
                         
                         nomeEvent, textEvent, date = resposta
                         # print(f"nomeEvent - {nomeEvent}")
-                        # print(f"textEvente - {textEvent}")
-                        # print(f"dataEvente - {date}")
+                        # print(f"textEvent - {textEvent}")
+                        # print(f"{date} {nomeEvent}")
                         
                         # values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date)))
                         # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date))
@@ -516,14 +523,14 @@ def fetchLog(idSolicitacao: int,
                         
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
-                     print(f"Erro de integridade MySQL: {e}")
+                     print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro de integridade MySQL: {e}")
                      with open("logRecuperaLogs.txt", 'a') as file:
                         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
                   except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
                      # print(f"type error: {e}")
                      return 1
                   except Exception as e:
-                     print(f"Erro ao processar resposta modbus em fetchLog: equipamento {codEquipamento} - {e}")
+                     print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro ao processar resposta modbus em fetchLog {e}")
                      return 0
                
                else:
@@ -549,36 +556,36 @@ def fetchLog(idSolicitacao: int,
                      
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
-                     print(f"Erro de integridade MySQL: {e}")
+                     print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro de integridade MySQL: {e}")
                      with open("logRecuperaLogs.txt", 'a') as file:
                         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
                   except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
                      # print(f"type error: {e}")
-                     return 1
+                     return
                   except ValueError as e: # ValueError acontecerá quando o campo de data for 0
                                           # o que significa que chegou ao fim do log
                      break
                   except Exception as e:
-                     print(f"Erro ao processar resposta modbus em fetchLog: equipamento {codEquipamento} - {e}")
-                     return 0
+                     print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro ao processar resposta modbus em fetchLog {e}")
+                     return
                   
                
 
          except mysql.connector.Error as e:
-            print(f"erro na comunicacao com o banco de dados: {e}")
+            print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} erro na comunicacao com o banco de dados {e}")
             return 0
          except ConnectionResetError as e:
-            print(f"Erro de conexao: {e}")
+            print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro de conexao: {e}")
             return 0
          except TimeoutError as e:
-            print(f"{e}")
+            print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} {e}")
             return 0
          finally:
             # print(values)
             escreverLogNoBanco(pool, values, tipoLog)
 
    except TimeoutError as e:
-      print(f"Erro de conexão com Modbus: {e}")
+      print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} {e}")
       return 1
    
 
