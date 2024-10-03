@@ -257,7 +257,7 @@ def escreverLogNoBancoLinhaALinha(conexaoComBanco, cursor, codEquipamento, codTi
       conexaoComBanco.commit()
       
    except mysql.connector.Error as e:
-      print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} erro de conexao MySQL: {e}")
+      print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} erro de conexao MySQL: {e}")
 
 
 
@@ -525,14 +525,14 @@ def fetchLog(idSolicitacao: int,
                         
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
-                     print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro de integridade MySQL: {e}")
+                     print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro de integridade MySQL: {e}")
                      with open("logRecuperaLogs.txt", 'a') as file:
                         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
                   except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
                      # print(f"type error: {e}")
                      return 1
                   except Exception as e:
-                     print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro ao processar resposta modbus em fetchLog: {e}")
+                     print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro ao processar resposta modbus em fetchLog: {e}")
                      return 0
                
                else:
@@ -558,7 +558,7 @@ def fetchLog(idSolicitacao: int,
                      
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
-                     print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro de integridade MySQL: {e}")
+                     print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro de integridade MySQL: {e}")
                      with open("logRecuperaLogs.txt", 'a') as file:
                         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
                   except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
@@ -568,32 +568,32 @@ def fetchLog(idSolicitacao: int,
                                           # o que significa que chegou ao fim do log
                      break
                   except Exception as e:
-                     print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro ao processar resposta modbus em fetchLog {e}")
+                     print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro ao processar resposta modbus em fetchLog {e}")
                      return
                   
                
 
          except mysql.connector.Error as e:
-            print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} erro na comunicacao com o banco de dados {e}")
+            print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} erro na comunicacao com o banco de dados {e}")
             return 0
          except ConnectionResetError as e:
-            print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro de conexao: {e}")
+            print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro de conexao: {e}")
             return 0
          except TimeoutError as e:
-            print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} {e}")
+            print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e}")
             return 0
          finally:
             # print(values)
             escreverLogNoBanco(pool, values, tipoLog)
 
    except TimeoutError as e:
-      print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} {e}")
+      print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e}")
       return
    except BrokenPipeError as e:
-      print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} {e}")
+      print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e}")
       return
    except Exception as e:
-      print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} {e}")
+      print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e}")
       
    
 
@@ -615,7 +615,7 @@ def main(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog): # id
    fetchLog(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog)
 
    fim = time.time()
-   print(f"Equipamento: {codEquipamento}   {datetime.datetime.now()}   tempo de excução: {(fim-inicio):.2f} segundos")
+   print(f"Equipamento: {codEquipamento}   Tipo log: {codTipoLog}  {datetime.datetime.now()}   tempo de excução: {(fim-inicio):.2f} segundos")
 
 
 if __name__ == "__main__":
