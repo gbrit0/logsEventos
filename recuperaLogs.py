@@ -6,6 +6,9 @@ import argparse
 import traceback
 import mysql.connector # type: ignore
 # from memory_profiler import profile
+from signal import signal, SIGPIPE, SIG_DFL
+
+signal(SIGPIPE,SIG_DFL)
 
 
 def conectarComModbus(idSolicitacao: str, host: str, porta: int): #  -> socket.socket
@@ -145,6 +148,9 @@ def hexParaDatetime(hex):
    return dataFinal
 
 
+
+
+
 def processarRespostaModbus(codTipoEquipamento, resp: bytes):
    # print("Entrando em processarRespostaModbus") 
    if codTipoEquipamento == 182 or codTipoEquipamento == 93:
@@ -185,7 +191,7 @@ def processarRespostaModbus(codTipoEquipamento, resp: bytes):
          # print(f"Data: {data}")
          
       except struct.error as e:
-         print(f"struct error em processarRespostaModbus: {e}")
+         # print(f"struct error em processarRespostaModbus: {e}")
          # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
          #    file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'struct error: {e}'\n")
          return e# (None, None, None)
@@ -268,28 +274,21 @@ def escreverLogNoBanco(pool, values, tipoLog):
    tentativas = 0
    maxTentativas = 3
 
-   while tentativas < maxTentativas:
-      try:
-         with pool.get_connection() as conexaoComBanco:
-               with conexaoComBanco.cursor() as cursor:
-                  # print(f"cursor: {type(cursor)}")
-                  # print(f"conexaoComOBanco: {type(conexaoComBanco)}")
-                  
-                  cursor.executemany(sql, values)
-                  conexaoComBanco.commit()
-                  # print(values)
-                  # for value in values:
-                  #    print(f"{value[2]} - {value[-1]}")
-
-         break  
-      except mysql.connector.errors.InternalError as e:
-         tentativas += 1
-         if tentativas < maxTentativas:
-            time.sleep(3)  
-         else: 
-            raise e
-      except Exception as e:
-         print(f"{datetime.datetime.now()} Erro em escreverLogNoBanco: {e}")
+   with pool.get_connection() as conexaoComBanco:
+      with conexaoComBanco.cursor() as cursor:
+         while tentativas < maxTentativas:
+            try:
+               cursor.executemany(sql, values)
+               conexaoComBanco.commit()
+               break  
+            except mysql.connector.errors.InternalError as e:
+               tentativas += 1
+               if tentativas < maxTentativas:
+                  time.sleep(3)  
+               else: 
+                  raise e
+            except Exception as e:
+               print(f"{datetime.datetime.now()} Erro em escreverLogNoBanco: {e}")
       
       
 
@@ -356,7 +355,8 @@ def processarLogs(logs, colunas):
     return todosLogs
 
 
-def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
+def buscarUltimaLinhaLog(codEquipamento, pool, tipoLog = 0):
+
    if tipoLog == 1: 
       tabela , colunaNome, colunaText = ['event_alarm', 'nome_alarm', 'text_alarm']
    else:
@@ -371,9 +371,11 @@ def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
       ORDER BY data_cadastro DESC 
       LIMIT 1
    """
-
-   cursor.execute(query)
-   return cursor.fetchone()
+   with pool.get_connection() as conexaoComBanco:
+      with conexaoComBanco.cursor() as cursor:
+         cursor.execute(query)
+         return cursor.fetchone()
+   return None
 
    
 
@@ -407,10 +409,12 @@ def testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta:int):
          # print(f"Saindo de testaConexaoModbus...")
          return codTipoEquipamento
    except TimeoutError as e:
-      print(f"Timeout Error em testaConexaoModbusERecuperaTipoEquipamento")
+      return e
+   except BrokenPipeError as e:
+      return e
    except Exception as e:
       print(f"Erro em testaConexaoModbusERecuperaTipoEquipamento: {e, traceback.format_exc()}")
-      return
+      
 
 
 def fetchLog(idSolicitacao: int,
@@ -438,12 +442,10 @@ def fetchLog(idSolicitacao: int,
             file.write(f"{datetime.datetime.now()}       id:{id}        'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
             return
       else:      
-         with pool.get_connection() as conexaoComBanco:
-            with conexaoComBanco.cursor() as cursor:
-               ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
+         ultimaLinha = buscarUltimaLinhaLog(codEquipamento, pool, tipoLog)
 
-               if ultimaLinha is None:
-                  ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
+         if ultimaLinha is None:
+            ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
          
       # print(f"ultimaLinha: {ultimaLinha}")
 
@@ -530,7 +532,7 @@ def fetchLog(idSolicitacao: int,
                      # print(f"type error: {e}")
                      return 1
                   except Exception as e:
-                     print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro ao processar resposta modbus em fetchLog {e}")
+                     print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} Erro ao processar resposta modbus em fetchLog: {e}")
                      return 0
                
                else:
@@ -586,7 +588,13 @@ def fetchLog(idSolicitacao: int,
 
    except TimeoutError as e:
       print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} {e}")
-      return 1
+      return
+   except BrokenPipeError as e:
+      print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} {e}")
+      return
+   except Exception as e:
+      print(f"Equipamento: {codEquipamento} {datetime.datetime.now()} {e}")
+      
    
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
@@ -621,4 +629,3 @@ if __name__ == "__main__":
 
    args = parser.parse_args()
    main(args.idSolicitacao, args.codEquipamento, args.modbusId, args.host, args.porta, args.codTipoLog)
-   
