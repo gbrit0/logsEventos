@@ -125,7 +125,7 @@ def buscarSolicitacoes(cursor: mysql.connector.cursor):
                FROM
                   solicitacao_log
                ORDER BY
-                  id
+                  id, cod_tipo_log
             """# LIMIT 15
    
    
