@@ -290,10 +290,10 @@ def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
 
 # def abreConexaoComBancoEExecutaFuncao(func, **kwargs):
    
-#    with mysql.connector.connect(user=os.environ['MYSQL_USER'], 
-#                           password=os.environ['MYSQL_PASSWORD'], 
-#                           host=os.environ['MYSQL_HOST'], 
-#                           database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
+#    with mysql.connector.connect(user=os.environ['LOGS_USER'], 
+#                           password=os.environ['LOGS_PASSWORD'], 
+#                           host=os.environ['LOGS_HOST'], 
+#                           database=os.environ['LOGS_DATABASE']) as conexaoComBanco:
 #       with conexaoComBanco.cursor() as cursor:
 #             func(conexaoComBanco=conexaoComBanco, cursor=cursor, **kwargs)
 
@@ -321,10 +321,10 @@ def fetchLog(idSolicitacao: int,
       pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
          pool_size=5,
-         user=os.environ['MYSQL_USER'],
-         password=os.environ['MYSQL_PASSWORD'],
-         host=os.environ['MYSQL_HOST'],
-         database=os.environ['MYSQL_DATABASE']
+         user=os.environ['LOGS_USER'],
+         password=os.environ['LOGS_PASSWORD'],
+         host=os.environ['LOGS_HOST'],
+         database=os.environ['LOGS_DATABASE']
       )
 
       with pool.get_connection() as conexaoComBanco:

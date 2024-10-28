@@ -76,10 +76,10 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
    """
 
    try:
-      with mysql.connector.connect(user = os.environ['MYSQL_USER'], 
-                              password = os.environ['MYSQL_PASSWORD'],
-                              host = os.environ['MYSQL_HOST'],
-                              database = os.environ['MYSQL_DATABASE']) as con:
+      with mysql.connector.connect(user = os.environ['LOGS_USER'], 
+                              password = os.environ['LOGS_PASSWORD'],
+                              host = os.environ['LOGS_HOST'],
+                              database = os.environ['LOGS_DATABASE']) as con:
 
          with con.cursor() as cursor:
                con.reconnect()
@@ -206,10 +206,10 @@ def main():
       pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
          pool_size=32,
-         user=os.environ['MYSQL_USER'],
-         password=os.environ['MYSQL_PASSWORD'],
-         host=os.environ['MYSQL_HOST'],
-         database=os.environ['MYSQL_DATABASE']
+         user=os.environ['LOGS_USER'],
+         password=os.environ['LOGS_PASSWORD'],
+         host=os.environ['LOGS_HOST'],
+         database=os.environ['LOGS_DATABASE']
       )
 
       # Conexão inicial para popular a tabela
@@ -238,10 +238,10 @@ def main():
    except mysql.connector.errors.OperationalError as e:
       pass
    finally:
-      with mysql.connector.connect(user=os.environ['MYSQL_USER'],
-                     password=os.environ['MYSQL_PASSWORD'],
-                     host=os.environ['MYSQL_HOST'],
-                     database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
+      with mysql.connector.connect(user=os.environ['LOGS_USER'],
+                     password=os.environ['LOGS_PASSWORD'],
+                     host=os.environ['LOGS_HOST'],
+                     database=os.environ['LOGS_DATABASE']) as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             truncate = f"truncate table solicitacao_log"
             conexaoComBanco.reconnect()
