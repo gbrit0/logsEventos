@@ -50,7 +50,7 @@ def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: in
    )
 
 
-def recuperarParametrosCounicacao(idSolicitacao, codEquipamento: int, conexaoComBanco, cursor) -> list:
+def recuperarParametrosCounicacao(idSolicitacao, codEquipamento: int, cursor) -> list:
    
    sql = f"""
       SELECT 
@@ -112,7 +112,7 @@ def recuperarParametrosCounicacao(idSolicitacao, codEquipamento: int, conexaoCom
 
 
 
-def processarRespostaModbus(codTipoEquipamento, resp: bytes) -> str:
+def processarRespostaModbus(resp: bytes) -> str:
    try:
       data = struct.unpack(
          """>3H83B30h28b""",
@@ -194,12 +194,16 @@ def escreverLogNoBanco(pool, values, tipoLog):
                   cursor.executemany(sql, values)
                   conexaoComBanco.commit()
          break  
+      
       except mysql.connector.errors.InternalError as e:
-         tentativas += 1
          if tentativas < maxTentativas:
             time.sleep(3)  
          else: 
             raise e
+      except Exception as e:
+         raise e
+      finally:
+         tentativas += 1
       
       
 
@@ -316,7 +320,7 @@ def fetchLog(idSolicitacao: int,
              host: str,
              porta: int,
              tipoLog = 0):
-
+   # print("entrou em fetchlog")
    try:
       pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
@@ -326,18 +330,22 @@ def fetchLog(idSolicitacao: int,
          host=os.environ['LOGS_HOST'],
          database=os.environ['LOGS_DATABASE']
       )
+      # print(os.environ['LOGS_USER'])
+      # print(os.environ['LOGS_PASSWORD'])
+      # print(os.environ['LOGS_HOST'])
+      # print(os.environ['LOGS_DATABASE'])
 
       with pool.get_connection() as conexaoComBanco:
          with conexaoComBanco.cursor() as cursor:
             codTipoEquipamento = testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta)
-
+            print(f"codTipoEquipamento {codTipoEquipamento}")
             if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
                with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
                   file.write(f"{datetime.datetime.now()}       id:{id}        'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
                   return
             else:      
                ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
-
+               print(f"ultimaLinha {ultimaLinha}")
                if ultimaLinha is None:
                   ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
                # print(f"ultimaLinha: {ultimaLinha}")
@@ -366,7 +374,7 @@ def fetchLog(idSolicitacao: int,
                req = gerarRequisicao(startingAddress,modbusId,startingAddress, tipoLog, codTipoEquipamento=codTipoEquipamento) # startingAddress é sempre o mesmo número que o transactionId
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
-               # print(res)
+               print(res)
                try:
                   nomeEvent, textEvent, date = processarRespostaModbus(codTipoEquipamento, res)
                
@@ -379,15 +387,10 @@ def fetchLog(idSolicitacao: int,
                      #                               codTipoEquipamento, 
                      #                               nomeEvent, textEvent, 
                      #                               date, tipoLog)
-
+                     print("linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]")
                      values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
                      # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date))
                   
-               except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
-                                                            # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
-                  print(f"Erro de integridade MySQL: {e}")
-                  with open("logRecuperaLogs.txt", 'a') as file:
-                     file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
                except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
                   # print(f"type error: {e}")
                   return 1
@@ -396,15 +399,16 @@ def fetchLog(idSolicitacao: int,
                   return 0
                
                
-         except mysql.connector.Error as e:
-            print(f"erro na comunicacao com o banco de dados: {e}")
-            return 0
+         
          except ConnectionResetError as e:
             print(f"Erro de conexao: {e}")
             return 0
          except TimeoutError as e:
             print(f"{e}")
             return 0
+         except Exception as e:
+                  print(f"erro ao processar resposta modbus: {e}")
+                  return 0
          finally:
             # print(values)
             escreverLogNoBanco(pool, values, tipoLog)
@@ -412,6 +416,18 @@ def fetchLog(idSolicitacao: int,
    except TimeoutError as e:
       print(f"Erro de conexão com Modbus: {e}")
       return 1
+   except mysql.connector.Error as e:
+            print(f"erro na comunicacao com o banco de dados: {e}")
+            return 0
+   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a execução devido ao Unique adicionado nas tabelas no banco
+                                                            # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
+                  print(f"Erro de integridade MySQL: {e}")
+                  with open("logRecuperaLogs.txt", 'a') as file:
+                     file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
+   except Exception as e:
+                  print(f"erro ao processar resposta modbus: {e}")
+                  return 0
+               
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
    query = f"""SELECT
@@ -426,27 +442,31 @@ def buscarSolicitacoes(cursor: mysql.connector.cursor):
 
 
 def main(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog): # idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog
-   inicio = time.time()
+   try:
+      inicio = time.time()
+
+      
+
+      fetchLog(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog)
 
    
 
-   fetchLog(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog)
-
-  
-
-   fim = time.time()
-   print(f"tempo de execução: {(fim-inicio):.2f} segundos")
+      fim = time.time()
+      print(f"tempo de execução: {(fim-inicio):.2f} segundos")
+   except Exception as e:
+      print(e)
 
 
-if __name__ == "__main__":
-   parser = argparse.ArgumentParser(description='Recupera Logs de Equipamento')
-   parser.add_argument('idSolicitacao', type=int, help='ID da Solicitação')
-   parser.add_argument('codEquipamento', type=int, help='Código do Equipamento')
-   parser.add_argument('modbusId', type=int, help='ID Modbus')
-   parser.add_argument('host', type=str, help='Host')
-   parser.add_argument('porta', type=int, help='Porta')
-   parser.add_argument('codTipoLog', type=int, help='Código do Tipo de Log')
 
-   args = parser.parse_args()
-   main(args.idSolicitacao, args.codEquipamento, args.modbusId, args.host, args.porta, args.codTipoLog)
+# if __name__ == "__main__":
+#    parser = argparse.ArgumentParser(description='Recupera Logs de Equipamento')
+#    parser.add_argument('idSolicitacao', type=int, help='ID da Solicitação')
+#    parser.add_argument('codEquipamento', type=int, help='Código do Equipamento')
+#    parser.add_argument('modbusId', type=int, help='ID Modbus')
+#    parser.add_argument('host', type=str, help='Host')
+#    parser.add_argument('porta', type=int, help='Porta')
+#    parser.add_argument('codTipoLog', type=int, help='Código do Tipo de Log')
+
+#    args = parser.parse_args()
+#    main(args.idSolicitacao, args.codEquipamento, args.modbusId, args.host, args.porta, args.codTipoLog)
    
