@@ -261,7 +261,7 @@ def escreverLogNoBancoLinhaALinha(conexaoComBanco, cursor, codEquipamento, codTi
 
 
 
-def escreverLogNoBanco(pool, values, tipoLog):
+def escreverLogNoBanco(conexaoComBanco, cursor, values, tipoLog):
    if tipoLog == 1: 
       tabela , coluna1, coluna2 = ['event_alarm', 'nome_alarm', 'text_alarm']
    else:
@@ -276,10 +276,8 @@ def escreverLogNoBanco(pool, values, tipoLog):
 
    while tentativas < maxTentativas:
       try:
-         with pool.get_connection() as conexaoComBanco:
-               with conexaoComBanco.cursor() as cursor:
-                  cursor.executemany(sql, values)
-                  conexaoComBanco.commit()
+         cursor.executemany(sql, values)
+         conexaoComBanco.commit()
          break  
       
       except mysql.connector.errors.InternalError as e:
@@ -288,7 +286,10 @@ def escreverLogNoBanco(pool, values, tipoLog):
          else: 
             raise e
       except Exception as e:
-         raise e
+         if tentativas < maxTentativas:
+            time.sleep(3)  
+         else: 
+            raise e
       finally:
          tentativas += 1
       
@@ -357,7 +358,7 @@ def processarLogs(logs, colunas):
     return todosLogs
 
 
-def buscarUltimaLinhaLog(codEquipamento, pool, tipoLog = 0):
+def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
 
    if tipoLog == 1: 
       tabela , colunaNome, colunaText = ['event_alarm', 'nome_alarm', 'text_alarm']
@@ -373,11 +374,11 @@ def buscarUltimaLinhaLog(codEquipamento, pool, tipoLog = 0):
       ORDER BY data_cadastro DESC 
       LIMIT 1
    """
-   with pool.get_connection() as conexaoComBanco:
-      with conexaoComBanco.cursor() as cursor:
-         cursor.execute(query)
-         return cursor.fetchone()
-   return None
+   # with pool.get_connection() as conexaoComBanco:
+   #    with conexaoComBanco.cursor() as cursor:
+   cursor.execute(query)
+   return cursor.fetchone()
+   # return None
 
    
 
@@ -430,7 +431,7 @@ def fetchLog(idSolicitacao: int,
    try:
       pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
-         pool_size=32,
+         pool_size=10,
          user=os.environ['LOGS_USER'],
          password=os.environ['LOGS_PASSWORD'],
          host=os.environ['LOGS_HOST'],
@@ -444,8 +445,10 @@ def fetchLog(idSolicitacao: int,
          with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
             file.write(f"{datetime.datetime.now()}       id:{id}        'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
             return
-      else:      
-         ultimaLinha = buscarUltimaLinhaLog(codEquipamento, pool, tipoLog)
+      else:
+         with pool.get_connection() as conexaoComBanco:
+            with conexaoComBanco.cursor() as cursor:      
+               ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
 
          if ultimaLinha is None:
             ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
@@ -521,10 +524,10 @@ def fetchLog(idSolicitacao: int,
                         # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date))
                      
                         linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                        # if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                        if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                           #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                           #  então exibir apenas um é o suficiente.
-                           # values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
+                           values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
                         print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
                         
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
@@ -586,9 +589,11 @@ def fetchLog(idSolicitacao: int,
          except TimeoutError as e:
             print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e.with_traceback()}")
             return 0
-         # finally:
+         finally:
             # print(values)
-            # escreverLogNoBanco(pool, values, tipoLog)
+            with pool.get_conection() as conexaoComBanco:
+               with conexaoComBanco.cursor() as cursor:
+                  escreverLogNoBanco(conexaoComBanco, cursor, values, tipoLog)
 
    except TimeoutError as e:
       print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e}")

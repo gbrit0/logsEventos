@@ -75,7 +75,7 @@ def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
          pass       
 
 
-def recuperarParametrosCounicacao(codEquipamento: int) -> list:
+def recuperarParametrosCounicacao(pool, codEquipamento: int) -> list:
    
    sql = f"""
       SELECT 
@@ -140,11 +140,11 @@ def processar_solicitacoes(pool):
             solicitacoes = buscarSolicitacoes(cursor)
             
 
-      for solicitacao in solicitacoes:
-         idSolicitacao, codEquipamento, codTipoLog = solicitacao
+      with pool.get_connection() as conexaoComBanco:
+         with conexaoComBanco.cursor() as cursor:
+            for solicitacao in solicitacoes:
+               idSolicitacao, codEquipamento, codTipoLog = solicitacao
 
-         with pool.get_connection() as conexaoComBanco:
-            with conexaoComBanco.cursor() as cursor:
                # Buscar parâmetros de comunicação
                parametrosComunicacao = f"""
                      SELECT 
@@ -158,18 +158,19 @@ def processar_solicitacoes(pool):
                cursor.execute(parametrosComunicacao)
                resultado = cursor.fetchone()
 
+               if resultado:
+                  host, porta, modbusId = resultado
+                  
+                  recuperaLogs(str(idSolicitacao), str(codEquipamento),
+                              str(modbusId), host, str(porta), str(codTipoLog))
+                  
                # Apagar a linha correspondente à solicitação
                deleteRow = f"DELETE FROM solicitacao_log WHERE id = {idSolicitacao}"
                cursor.execute(deleteRow)
                conexaoComBanco.commit()
 
-         if resultado:
-            host, porta, modbusId = resultado
-            
-            recuperaLogs(str(idSolicitacao), str(codEquipamento),
-                         str(modbusId), host, str(porta), str(codTipoLog))
-            
-         time.sleep(2)
+                  
+               time.sleep(2)
 
 
    except mysql.connector.DatabaseError as e:
@@ -201,7 +202,7 @@ def main():
    try:
       pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
-         pool_size=32,
+         pool_size=5,
          user=os.environ['LOGS_USER'],
          password=os.environ['LOGS_PASSWORD'],
          host=os.environ['LOGS_HOST'],
