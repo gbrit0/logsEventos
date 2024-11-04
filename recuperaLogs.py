@@ -384,7 +384,8 @@ def buscarUltimaLinhaLog(codEquipamento, pool, tipoLog = 0):
 
 # def abreConexaoComBancoEexcutaFuncao(func, **kwargs):
    
-#    with mysql.connector.connect(user=os.environ['MYSQL_USER'], 
+#    with mysql.connector.connect(user=os.environ['
+# USER'], 
 #                           password=os.environ['MYSQL_PASSWORD'], 
 #                           host=os.environ['MYSQL_HOST'], 
 #                           database=os.environ['MYSQL_DATABASE']) as conexaoComBanco:
@@ -461,7 +462,7 @@ def fetchLog(idSolicitacao: int,
       elif codTipoEquipamento == 88:
          ran = range(151)
       elif codTipoEquipamento == 182 or codTipoEquipamento == 93:
-            ran = range(0, 500, 3)
+            ran = range(0, 15, 3)
       else:
          # Log Eventos
          ran = range(500)
@@ -489,6 +490,7 @@ def fetchLog(idSolicitacao: int,
                   2, #byte count
                   registerValue 
                )
+            print(req)
 
             conexaoComModbus.send(req)
             res = conexaoComModbus.recv(1024)
@@ -519,11 +521,11 @@ def fetchLog(idSolicitacao: int,
                         # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date))
                      
                         linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                        if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                        # if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                           #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                           #  então exibir apenas um é o suficiente.
                            # values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
-                           print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
+                        print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
                         
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
@@ -543,7 +545,7 @@ def fetchLog(idSolicitacao: int,
                         resposta = next(processarRespostaModbus(codTipoEquipamento, res)) # Usando 'next' pois processarRespostaModbus, por conta do yield
                                                                                           # no tratamento das respostas dos ASC, é uma função geradora. 
                                                                                           # Antes estava usando return e tava dando pau
-                        # print(f'resposta:{resposta}')
+                        print(f'resposta:{resposta}')
                         
                         
                         nomeEvent, textEvent, date = resposta
@@ -552,11 +554,11 @@ def fetchLog(idSolicitacao: int,
                         # print(f"dataEvente - {date}")
                      
                         linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                        if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #   Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                        # if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #   Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                        #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                        #  então exibir apenas um é o suficiente.
                            # values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
-                           print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
+                        print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
                      
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
@@ -582,7 +584,7 @@ def fetchLog(idSolicitacao: int,
             print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro de conexao: {e}")
             return 0
          except TimeoutError as e:
-            print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e}")
+            print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e.with_traceback()}")
             return 0
          # finally:
             # print(values)
