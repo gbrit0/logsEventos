@@ -274,21 +274,23 @@ def escreverLogNoBanco(pool, values, tipoLog):
    tentativas = 0
    maxTentativas = 3
 
-   with pool.get_connection() as conexaoComBanco:
-      with conexaoComBanco.cursor() as cursor:
-         while tentativas < maxTentativas:
-            try:
-               cursor.executemany(sql, values)
-               conexaoComBanco.commit()
-               break  
-            except mysql.connector.errors.InternalError as e:
-               tentativas += 1
-               if tentativas < maxTentativas:
-                  time.sleep(3)  
-               else: 
-                  raise e
-            except Exception as e:
-               print(f"{datetime.datetime.now()} Erro em escreverLogNoBanco: {e}")
+   while tentativas < maxTentativas:
+      try:
+         with pool.get_connection() as conexaoComBanco:
+               with conexaoComBanco.cursor() as cursor:
+                  cursor.executemany(sql, values)
+                  conexaoComBanco.commit()
+         break  
+      
+      except mysql.connector.errors.InternalError as e:
+         if tentativas < maxTentativas:
+            time.sleep(3)  
+         else: 
+            raise e
+      except Exception as e:
+         raise e
+      finally:
+         tentativas += 1
       
       
 
