@@ -430,10 +430,10 @@ def fetchLog(idSolicitacao: int,
       pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
          pool_size=32,
-         user=os.environ['MYSQL_USER'],
-         password=os.environ['MYSQL_PASSWORD'],
-         host=os.environ['MYSQL_HOST'],
-         database=os.environ['MYSQL_DATABASE']
+         user=os.environ['LOGS_USER'],
+         password=os.environ['LOGS_PASSWORD'],
+         host=os.environ['LOGS_HOST'],
+         database=os.environ['LOGS_DATABASE']
       )
 
       codTipoEquipamento = testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta)
@@ -522,8 +522,8 @@ def fetchLog(idSolicitacao: int,
                         if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                           #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                           #  então exibir apenas um é o suficiente.
-                           values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
-                           # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
+                           # values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
+                           print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
                         
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
@@ -555,8 +555,8 @@ def fetchLog(idSolicitacao: int,
                         if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #   Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                        #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                        #  então exibir apenas um é o suficiente.
-                           values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
-                           # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
+                           # values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
+                           print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
                      
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
@@ -584,9 +584,9 @@ def fetchLog(idSolicitacao: int,
          except TimeoutError as e:
             print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e}")
             return 0
-         finally:
+         # finally:
             # print(values)
-            escreverLogNoBanco(pool, values, tipoLog)
+            # escreverLogNoBanco(pool, values, tipoLog)
 
    except TimeoutError as e:
       print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e}")
