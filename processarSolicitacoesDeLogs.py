@@ -198,7 +198,7 @@ def processar_solicitacoes(pool):
 
 def main():
    inicio = time.time()
-   print(15*'-' + 3*' ' + 'Início da execução' + 3*' ' + 15*'-')
+   print(15*'-' + 3*' ' + f'Início da execução em {datetime.datetime.now()}' + 3*' ' + 15*'-')
    try:
       pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
@@ -237,6 +237,6 @@ def main():
 
 
    fim = time.time()
-   print(f"Fim da execução   {datetime.datetime.now()}   tempo de execução: {(fim-inicio):.2f} segundos")
+   print(f"Fim da execução   {datetime.datetime.now()}   tempo de execução: {(fim-inicio):.2f} segundos\n")
 
 if __name__ == "__main__": main()

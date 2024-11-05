@@ -7,6 +7,7 @@ import traceback
 import mysql.connector # type: ignore
 # from memory_profiler import profile
 from signal import signal, SIGPIPE, SIG_DFL
+import sys
 
 signal(SIGPIPE,SIG_DFL)
 
@@ -524,7 +525,8 @@ def fetchLog(idSolicitacao: int,
                         # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date))
                      
                         linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                        if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                        # print(linha)
+                        if linha[3] >= ultimaLinha[4]: # and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                           #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                           #  então exibir apenas um é o suficiente.
                            values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
@@ -557,7 +559,8 @@ def fetchLog(idSolicitacao: int,
                         # print(f"dataEvente - {date}")
                      
                         linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                        if linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]:    #   Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                        # print(linha)
+                        if linha[3] >= ultimaLinha[4]: # and textEvent != ultimaLinha[3]:    #   Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                        #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                        #  então exibir apenas um é o suficiente.
                            values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
@@ -587,6 +590,7 @@ def fetchLog(idSolicitacao: int,
             print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro de conexao: {e}")
             return 0
          except TimeoutError as e:
+            tb = sys.exception().__traceback__
             print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e.with_traceback()}")
             return 0
          finally:
