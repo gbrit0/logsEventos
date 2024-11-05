@@ -345,7 +345,7 @@ def fetchLog(idSolicitacao: int,
                   return
             else:      
                ultimaLinha = buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog)
-               print(f"ultimaLinha {ultimaLinha}")
+               # print(f"ultimaLinha {ultimaLinha}")
                if ultimaLinha is None:
                   ultimaLinha = (0, 0, '', '', datetime.datetime(1900,1,1,0,0,0,0))
                # print(f"ultimaLinha: {ultimaLinha}")
@@ -374,7 +374,7 @@ def fetchLog(idSolicitacao: int,
                req = gerarRequisicao(startingAddress,modbusId,startingAddress, tipoLog, codTipoEquipamento=codTipoEquipamento) # startingAddress é sempre o mesmo número que o transactionId
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
-               print(res)
+               # print(res)
                try:
                   nomeEvent, textEvent, date = processarRespostaModbus(codTipoEquipamento, res)
                
@@ -387,7 +387,7 @@ def fetchLog(idSolicitacao: int,
                      #                               codTipoEquipamento, 
                      #                               nomeEvent, textEvent, 
                      #                               date, tipoLog)
-                     print("linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]")
+                     # print("linha[3] >= ultimaLinha[4] and textEvent != ultimaLinha[3]")
                      values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
                      # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date))
                   
