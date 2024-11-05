@@ -205,7 +205,7 @@ def main():
     try:
         pool = mysql.connector.pooling.MySQLConnectionPool(
             pool_name="MySqlPool",
-            pool_size=32,
+            pool_size=10,
             user=os.environ['LOGS_USER'],
             password=os.environ['LOGS_PASSWORD'],
             host=os.environ['LOGS_HOST'],
