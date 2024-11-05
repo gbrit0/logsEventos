@@ -590,8 +590,8 @@ def fetchLog(idSolicitacao: int,
             print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro de conexao: {e}")
             return 0
          except TimeoutError as e:
-            tb = sys.exception().__traceback__
-            print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e.with_traceback()}")
+            # tb = sys.exception().__traceback__
+            print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e}")
             return 0
          finally:
             # print(values)
