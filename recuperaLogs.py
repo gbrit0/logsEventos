@@ -524,9 +524,9 @@ def fetchLog(idSolicitacao: int,
                         # values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date)))
                         # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date))
                      
-                        linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
+                        # linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
                         # print(linha)
-                        if linha[3] >= ultimaLinha[4]: # and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
+                        if date >= ultimaLinha[4] and date <= datetime.datetime.now(): # and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                           #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                           #  então exibir apenas um é o suficiente.
                            values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
@@ -541,7 +541,7 @@ def fetchLog(idSolicitacao: int,
                      # print(f"type error: {e}")
                      return 1
                   except Exception as e:
-                     print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro ao processar resposta modbus em fetchLog: {e}")
+                     print(f"Equipamento: {codEquipamento}   Tipo log: {tipoLog}   {datetime.datetime.now()}   Erro ao processar resposta modbus em fetchLog: {e}")
                      return 0
                
                else:
@@ -578,7 +578,7 @@ def fetchLog(idSolicitacao: int,
                                           # o que significa que chegou ao fim do log
                      break
                   except Exception as e:
-                     print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro ao processar resposta modbus em fetchLog {e}")
+                     print(f"Equipamento:   {codEquipamento} Tipo log:   {tipoLog}   {datetime.datetime.now()}   Erro ao processar resposta modbus em fetchLog: {e}")
                      return
                   
                
