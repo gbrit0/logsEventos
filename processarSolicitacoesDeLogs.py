@@ -106,7 +106,15 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
       
 
 
-def processar_solicitacoes(pool, solicitacoes):
+def processar_solicitacoes(solicitacoes):
+    pool = mysql.connector.pooling.MySQLConnectionPool(
+            pool_name="MySqlPoolProcessarSolicitacoes",
+            pool_size=1,
+            user=os.environ['LOGS_USER'],
+            password=os.environ['LOGS_PASSWORD'],
+            host=os.environ['LOGS_HOST'],
+            database=os.environ['LOGS_DATABASE']
+        )
     try:
         
         processes = []
@@ -206,7 +214,7 @@ def main():
     try:
         pool = mysql.connector.pooling.MySQLConnectionPool(
             pool_name="MySqlPool",
-            pool_size=10,
+            pool_size=1,
             user=os.environ['LOGS_USER'],
             password=os.environ['LOGS_PASSWORD'],
             host=os.environ['LOGS_HOST'],
@@ -228,7 +236,7 @@ def main():
                     solicitacoes = buscarSolicitacoes(cursor)
                     if not solicitacoes:
                         break
-                    processar_solicitacoes(pool, solicitacoes)
+                    processar_solicitacoes(solicitacoes)
 
     except mysql.connector.InterfaceError as e:
         with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
@@ -239,10 +247,7 @@ def main():
     except mysql.connector.errors.OperationalError as e:
         pass
     finally:
-        with mysql.connector.connect(user=os.environ['LOGS_USER'],
-                        password=os.environ['LOGS_PASSWORD'],
-                        host=os.environ['LOGS_HOST'],
-                        database=os.environ['LOGS_DATABASE']) as conexaoComBanco:
+        with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
                 truncate = f"truncate table solicitacao_log"
                 # conexaoComBanco.reconnect()

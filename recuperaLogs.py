@@ -428,16 +428,18 @@ def fetchLog(idSolicitacao: int,
              host: str,
              porta: int,
              tipoLog = 0):
-
-   try:
-      pool = mysql.connector.pooling.MySQLConnectionPool(
+   
+   pool = mysql.connector.pooling.MySQLConnectionPool(
          pool_name="MySqlPool",
-         pool_size=10,
+         pool_size=1,
          user=os.environ['LOGS_USER'],
          password=os.environ['LOGS_PASSWORD'],
          host=os.environ['LOGS_HOST'],
          database=os.environ['LOGS_DATABASE']
       )
+   
+   try:
+      
 
       codTipoEquipamento = testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta)
       # print(f'codEquipamento - {codEquipamento} - codTipoEquipamento - {codTipoEquipamento}')
