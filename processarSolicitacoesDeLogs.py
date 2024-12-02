@@ -113,8 +113,10 @@ def processar_solicitacoes(solicitacoes):
             user=os.environ['LOGS_USER'],
             password=os.environ['LOGS_PASSWORD'],
             host=os.environ['LOGS_HOST'],
-            database=os.environ['LOGS_DATABASE']
+            database=os.environ['LOGS_DATABASE'],
+            connection_timeout=300
         )
+    
     try:
         
         processes = []
