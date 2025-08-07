@@ -152,8 +152,7 @@ def hexParaDatetime(hex):
 
 def processarRespostaModbus(codTipoEquipamento, resp: bytes):
    # print("Entrando em processarRespostaModbus") 
-   if codTipoEquipamento == 182 or codTipoEquipamento == 93:
-      # print("Entrou no loop if codTipoEquipamento == 182 or codTipoEquipamento == 93...")
+   if codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
       # j = 1
       for i in range(0,228,76):
          # j+=1
@@ -213,7 +212,7 @@ def processarRespostaModbus(codTipoEquipamento, resp: bytes):
 def extrair_texto(caracteres, codTipoEquipamento):
    texto = []
    i = 0
-   if codTipoEquipamento == 182 or codTipoEquipamento == 93:
+   if codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
 
       while i < len(caracteres):
          try:   
@@ -394,22 +393,22 @@ def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
 
 
 def testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta:int):
-   print(f"Entrou em testaConexaoModbus...")
+   # print(f"Entrou em testaConexaoModbus...")
    req = gerarRequisicao(tipoLog=3)
-   print(f"Requisição: {req}")
+   # print(f"Requisição: {req}")
    try:
       with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
-         print("Conectou com o modbus")
+         # print("Conectou com o modbus")
          conexaoComModbus.send(req)
-         print("requisição enviada")
+         # print("requisição enviada")
          resposta = struct.unpack(
             ">3H3BH",
             conexaoComModbus.recv(1024))
-         print("resposta recebida")
-         print(f"Resposta = {resposta}")
+         # print("resposta recebida")
+         # print(f"Resposta = {resposta}")
          codTipoEquipamento = resposta[6]
-         print(f"codTipoEquipamento = {codTipoEquipamento}")
-         print(f"Saindo de testaConexaoModbus...")
+         # print(f"codTipoEquipamento = {codTipoEquipamento}")
+         # print(f"Saindo de testaConexaoModbus...")
          return codTipoEquipamento
    except TimeoutError as e:
       return e
@@ -468,7 +467,7 @@ def fetchLog(idSolicitacao: int,
       elif codTipoEquipamento == 88:
          ran = range(151)
       elif codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
-            ran = range(0, 15, 3)
+            ran = range(0, 500, 3)
       else:
          # Log Eventos
          ran = range(500)
@@ -507,17 +506,16 @@ def fetchLog(idSolicitacao: int,
 
             for startingAddress in ran:
                req = gerarRequisicao(startingAddress, modbusId, startingAddress, tipoLog, codTipoEquipamento ) # startingAddress é sempre o mesmo número que o transactionId
-               print(f'requisição {startingAddress} - {req.hex()}')
+               # print(f'requisição {req.hex()}') # {startingAddress} -
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
-               print(f'res - {res}')
+               # print(f'res - {res}')
                if codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
                   respostas = processarRespostaModbus(codTipoEquipamento, res[9:])
                   # print(f"respostas: {respostas}")
 
                   try:
                      for resposta in respostas:
-                        print(f'resposta:{resposta}')
                         
                         nomeEvent, textEvent, date = resposta
                         # print(f"nomeEvent - {nomeEvent}")
@@ -527,12 +525,15 @@ def fetchLog(idSolicitacao: int,
                         # values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date)))
                         # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date))
                      
-                        # linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
+                        # linha = (codEquipamento, codTipoEquipamento, nomeEvent, date, str(textEvent))
                         # print(linha)
                         if date >= ultimaLinha[4] and date <= datetime.datetime.now(): # and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                           #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                           #  então exibir apenas um é o suficiente.
-                           values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
+                           if codTipoEquipamento != 201:
+                              values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
+                           else:
+                              values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date)))
                         # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
                         
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
@@ -553,16 +554,15 @@ def fetchLog(idSolicitacao: int,
                         resposta = next(processarRespostaModbus(codTipoEquipamento, res)) # Usando 'next' pois processarRespostaModbus, por conta do yield
                                                                                           # no tratamento das respostas dos ASC, é uma função geradora. 
                                                                                           # Antes estava usando return e tava dando pau
-                        print(f'resposta:{resposta}')
-                        
-                        
+                        # print(f'resposta:{resposta}')
+                     
                         nomeEvent, textEvent, date = resposta
                         # print(f"nomeEvent - {nomeEvent}")
                         # print(f"textEvente - {textEvent}")
                         # print(f"dataEvente - {date}")
                      
-                        linha = (codEquipamento, codTipoEquipamento, nomeEvent, date)
-                        # print(linha)
+                        linha = (codEquipamento, codTipoEquipamento, nomeEvent, date, str(textEvent))
+                        print(linha)
                         if linha[3] >= ultimaLinha[4]: # and textEvent != ultimaLinha[3]:    #   Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                        #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                        #  então exibir apenas um é o suficiente.
