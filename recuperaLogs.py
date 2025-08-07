@@ -5,9 +5,7 @@ import os
 import argparse
 import traceback
 import mysql.connector # type: ignore
-# from memory_profiler import profile
 from signal import signal, SIGPIPE, SIG_DFL
-import sys
 
 signal(SIGPIPE,SIG_DFL)
 
@@ -15,7 +13,7 @@ signal(SIGPIPE,SIG_DFL)
 def conectarComModbus(idSolicitacao: str, host: str, porta: int): #  -> socket.socket
    try:
       con = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      con.settimeout(30)
+      con.settimeout(45)
       # print(f"host: {host} {type(host)}")
       # print(f"porta: {porta} {type(porta)}")
       con.connect((host, int(porta)))
@@ -41,17 +39,17 @@ def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: in
    
    codFuncao = 67
    codCampo = startingAddress
+   quantidade = 84
    
    # print(f'geraRequisicao codTipoEquipamento: {codTipoEquipamento}')
 
-   if codTipoEquipamento == 182 or codTipoEquipamento == 93:
+   if codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
       quantidade = 3
    if tipoLog == 3:
       codFuncao = 4
       codCampo = 59900
       quantidade = 1
-   else:
-      quantidade = 84
+   
       
    # print(f'quantidade: {quantidade}')
    return struct.pack(
@@ -396,22 +394,22 @@ def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
 
 
 def testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta:int):
-   # print(f"Entrou em testaConexaoModbus...")
+   print(f"Entrou em testaConexaoModbus...")
    req = gerarRequisicao(tipoLog=3)
-   # print(f"Requisição: {req}")
+   print(f"Requisição: {req}")
    try:
       with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
-         # print("Conectou com o modbus")
+         print("Conectou com o modbus")
          conexaoComModbus.send(req)
-         # print("requisição enviada")
+         print("requisição enviada")
          resposta = struct.unpack(
             ">3H3BH",
             conexaoComModbus.recv(1024))
-         # print("resposta recebida")
-         # print(f"Resposta = {resposta}")
+         print("resposta recebida")
+         print(f"Resposta = {resposta}")
          codTipoEquipamento = resposta[6]
-         # print(f"codTipoEquipamento = {codTipoEquipamento}")
-         # print(f"Saindo de testaConexaoModbus...")
+         print(f"codTipoEquipamento = {codTipoEquipamento}")
+         print(f"Saindo de testaConexaoModbus...")
          return codTipoEquipamento
    except TimeoutError as e:
       return e
@@ -438,6 +436,7 @@ def fetchLog(idSolicitacao: int,
          database=os.environ['LOGS_DATABASE']
       )
    
+   
    try:
       
 
@@ -445,8 +444,9 @@ def fetchLog(idSolicitacao: int,
       # print(f'codEquipamento - {codEquipamento} - codTipoEquipamento - {codTipoEquipamento}')
 
       if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
+         # print('não foi possível conectrar com o modbus')
          with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-            file.write(f"{datetime.datetime.now()}       id:{id}        'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
+            file.write(f"{datetime.datetime.now()}\tid:{id}\t'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
             return
       else:
          with pool.get_connection() as conexaoComBanco:
@@ -461,13 +461,13 @@ def fetchLog(idSolicitacao: int,
       if tipoLog == 1:  # Log Alarmes
          if codTipoEquipamento == 88:
             ran = range(500, 651)
-         elif codTipoEquipamento == 182 or codTipoEquipamento == 93:
+         elif codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
             ran = range(500, 998, 3)
          else:
             ran = range(500, 1000)
       elif codTipoEquipamento == 88:
          ran = range(151)
-      elif codTipoEquipamento == 182 or codTipoEquipamento == 93:
+      elif codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
             ran = range(0, 15, 3)
       else:
          # Log Eventos
@@ -496,27 +496,28 @@ def fetchLog(idSolicitacao: int,
                   2, #byte count
                   registerValue 
                )
-            # print(req)
+            # print(f"req: {req}")
 
             conexaoComModbus.send(req)
             res = conexaoComModbus.recv(1024)
+            # print(f"res: {res.hex()}")
             # print(f"Len res = {len(res)}")
 
             assert res == b'\x00\x00\x00\x00\x00\x06\x12\x10\xe6\x14\x00\x01'
 
             for startingAddress in ran:
-               req = gerarRequisicao(startingAddress,modbusId,startingAddress, tipoLog,codTipoEquipamento ) # startingAddress é sempre o mesmo número que o transactionId
-               # print(f'requisição {startingAddress} - {req.hex()}')
+               req = gerarRequisicao(startingAddress, modbusId, startingAddress, tipoLog, codTipoEquipamento ) # startingAddress é sempre o mesmo número que o transactionId
+               print(f'requisição {startingAddress} - {req.hex()}')
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
-               # print(f'res - {res}')
-               if codTipoEquipamento == 182 or codTipoEquipamento == 93:
+               print(f'res - {res}')
+               if codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
                   respostas = processarRespostaModbus(codTipoEquipamento, res[9:])
                   # print(f"respostas: {respostas}")
 
                   try:
                      for resposta in respostas:
-                        # print(f'resposta:{resposta}')
+                        print(f'resposta:{resposta}')
                         
                         nomeEvent, textEvent, date = resposta
                         # print(f"nomeEvent - {nomeEvent}")
@@ -552,7 +553,7 @@ def fetchLog(idSolicitacao: int,
                         resposta = next(processarRespostaModbus(codTipoEquipamento, res)) # Usando 'next' pois processarRespostaModbus, por conta do yield
                                                                                           # no tratamento das respostas dos ASC, é uma função geradora. 
                                                                                           # Antes estava usando return e tava dando pau
-                        # print(f'resposta:{resposta}')
+                        print(f'resposta:{resposta}')
                         
                         
                         nomeEvent, textEvent, date = resposta
@@ -572,7 +573,7 @@ def fetchLog(idSolicitacao: int,
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
                      print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro de integridade MySQL: {e}")
                      with open("logRecuperaLogs.txt", 'a') as file:
-                        file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
+                        file.write(f"{datetime.datetime.now()}\tid:{idSolicitacao}\t'Erro de integridade MySQL: {e}'\n") 
                   except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
                      # print(f"type error: {e}")
                      return

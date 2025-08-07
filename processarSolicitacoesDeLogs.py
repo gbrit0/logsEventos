@@ -32,7 +32,7 @@ def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
         query = f"""INSERT INTO solicitacao_log (cod_equipamento, cod_tipo_log)
                   SELECT 
                      cod_equipamento,
-                     {x}
+                     {x} as cod_tipo_log
                   FROM
                      modbus_tcp
                   WHERE
@@ -47,13 +47,13 @@ def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
                                  LEFT JOIN
                               leituras lt ON lt.cod_equipamento = eq.codigo
                         WHERE
-                              cod_tipo_conexao = 1 AND eq.ativo = 1
-                                 AND us.ativo = 1
-                                 AND lt.cod_campo = 3
+                              cod_tipo_conexao = '1' AND eq.ativo = '1'
+                                 AND us.ativo = '1'
+                                 AND lt.cod_campo = '3'
                                  AND TIMESTAMPDIFF(MINUTE,
                                  lt.data_cadastro,
                                  NOW()) < 2)
-                  AND cod_tipo_conexao = 1
+                  AND cod_tipo_conexao = '1'
                         """
         try:
             # conexaoComBanco.reconnect()
