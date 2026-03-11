@@ -9,7 +9,7 @@ import time
 from signal import signal, SIGPIPE, SIG_DFL
 import errno 
 
-
+from recuperaLogs import main as recuperaLogs
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
     query = f"""SELECT
@@ -151,11 +151,12 @@ def processar_solicitacoes(solicitacoes):
 
             if resultado:
                 host, porta, modbusId = resultado
-                process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
-                                            str(idSolicitacao), str(codEquipamento),
-                                            str(modbusId), host, str(porta), str(codTipoLog)],
-                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                processes.append((process, idSolicitacao))
+                # process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
+                #                             str(idSolicitacao), str(codEquipamento),
+                #                             str(modbusId), host, str(porta), str(codTipoLog)],
+                #                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                # processes.append((process, idSolicitacao))
+                recuperaLogs(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog)
                 
             time.sleep(1)
 
@@ -213,15 +214,15 @@ def main():
     inicio = time.time()
     print(15*'-' + 3*' ' + f'Início da execução em {datetime.datetime.now()}' + 3*' ' + 15*'-')
    
+    pool = mysql.connector.pooling.MySQLConnectionPool(
+        pool_name="MySqlPool",
+        pool_size=1,
+        user=os.environ['LOGS_USER'],
+        password=os.environ['LOGS_PASSWORD'],
+        host=os.environ['LOGS_HOST'],
+        database=os.environ['LOGS_DATABASE']
+    )
     try:
-        pool = mysql.connector.pooling.MySQLConnectionPool(
-            pool_name="MySqlPool",
-            pool_size=1,
-            user=os.environ['LOGS_USER'],
-            password=os.environ['LOGS_PASSWORD'],
-            host=os.environ['LOGS_HOST'],
-            database=os.environ['LOGS_DATABASE']
-        )
 
         # Conexão inicial para popular a tabela
         with pool.get_connection() as conexaoComBanco:
@@ -238,6 +239,7 @@ def main():
                     solicitacoes = buscarSolicitacoes(cursor)
                     if not solicitacoes:
                         break
+                        # return
                     processar_solicitacoes(solicitacoes)
 
     except mysql.connector.InterfaceError as e:

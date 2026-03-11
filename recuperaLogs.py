@@ -14,14 +14,12 @@ def conectarComModbus(idSolicitacao: str, host: str, porta: int): #  -> socket.s
    try:
       con = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       con.settimeout(45)
-      # print(f"host: {host} {type(host)}")
-      # print(f"porta: {porta} {type(porta)}")
       con.connect((host, int(porta)))
-      # print("Conexão com o Modbus estabelecida")
+
    except TimeoutError as e:
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
          file.write(f"{datetime.datetime.now()} {idSolicitacao} Timeout em conectarComModbus: {e}")
-      # print(f"Erro de conexão com Modbus: {e}")
+
       return
    except OSError as e:
       return """Não foi possível conectar com o Modbus. Erro de rota. Provavelmente a comunicação é via conversor. Verificar o cod_tipo_conexao em modbus_tcp"""
@@ -41,7 +39,6 @@ def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: in
    codCampo = startingAddress
    quantidade = 84
    
-   # print(f'geraRequisicao codTipoEquipamento: {codTipoEquipamento}')
 
    if codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
       quantidade = 3
@@ -51,7 +48,6 @@ def gerarRequisicao(transactionId: int = 0, unitId: int = 1, startingAddress: in
       quantidade = 1
    
       
-   # print(f'quantidade: {quantidade}')
    return struct.pack(
       '>3H2B2H',
       int(transactionId),
@@ -83,9 +79,6 @@ def recuperarParametrosCounicacao(idSolicitacao, codEquipamento: int, conexaoCom
       #                         password=os.environ['PASSWORD'],
       #                         host='192.168.4.50',
       #                         database=os.environ['DATABASE']) as con:
-      #    # print(f"user: {os.environ['USER']}")
-      #    # print(f"password: {os.environ['PASSWORD']}")
-      #    # print(f"database: {os.environ['DATABASE']}")
 
       #    with con.cursor() as cursor:
                cursor.excute(sql)
@@ -94,31 +87,31 @@ def recuperarParametrosCounicacao(idSolicitacao, codEquipamento: int, conexaoCom
                # host, porta, modbusId, codTipoEquipamento
                return result[0], result[1], result[2], result[3] #, codEquipamento
    except mysql.connector.InterfaceError as e:
-      # print(f"Erro de interface MySQL: {e}")
+      print(f"Erro de interface MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
          file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de interface MySQL: {e}'\n")
    except mysql.connector.DatabaseError as e:
-      # print(f"Erro de banco de dados MySQL: {e}")
+      print(f"Erro de banco de dados MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
          file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de banco de dados MySQL: {e}'\n")
    except mysql.connector.OperationalError as e:
-      # print(f"Erro operacional MySQL: {e}")
+      print(f"Erro operacional MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
          file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro operacional MySQL: {e}'\n")
    except mysql.connector.IntegrityError as e:
-      # print(f"Erro de integridade MySQL: {e}")
+      print(f"Erro de integridade MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
          file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n")
    except mysql.connector.ProgrammingError as e:
-      # print(f"Erro de programação MySQL: {e}")
+      print(f"Erro de programação MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
          file.write(f"{datetime.datetime.now()}       id{idSolicitacao}        'Erro de programação MySQL: {e}'\n")
    except mysql.connector.DataError as e:
-      # print(f"Erro de dados MySQL: {e}")
+      print(f"Erro de dados MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
          file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de dados MySQL: {e}'\n")
    except mysql.connector.Error as e:
-      # print(f"Erro de conexão MySQL: {e}")
+      print(f"Erro de conexão MySQL: {e}")
       with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
          file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de conexão MySQL: {e}'\n")
 
@@ -151,48 +144,36 @@ def hexParaDatetime(hex):
 
 
 def processarRespostaModbus(codTipoEquipamento, resp: bytes):
-   # print("Entrando em processarRespostaModbus") 
    if codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
       # j = 1
       for i in range(0,228,76):
          # j+=1
-         # print(f"{j}ª vez no loop")
-         # print(resp[i:76+i].hex())
          text = extrair_texto(resp[0+i:19+i], codTipoEquipamento)
-         # print("saiu de extrair texto")
          data = struct.unpack(
             '>26h',
             resp[24+i:76+i]
          )
-         # print("data unpacked")
          date = resp[19+i:24+i].hex()
          date = hexParaDatetime(date)
-         # print(f"text: {text}")
-         # print(f"data: {data}")
-         # print(f"date month: {date.month}")
-         # print(f"datetime.now().month: {datetime.datetime.now().month}")
          
          if date.month == datetime.datetime.now().month:
+            # print([text, date.strftime("%d-%m-%Y %H:%M:%S.%f")])
             yield [text, data, date]  
-            # print(f'{resp[19+i:24+i].hex()},{date}') 
          else:
             return
 
 
    else:
       try:
-         # print(resp.hex())
          data = struct.unpack(
             """>3H83B30h28b""",
             resp
          )
-         # print(f"Data: {data}")
          
       except struct.error as e:
-         # print(f"struct error em processarRespostaModbus: {e}")
          # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
          #    file.write(f"{datetime.datetime.now()}       {idSolicitacao}        'struct error: {e}'\n")
-         return e# (None, None, None)
+         return e # (None, None, None)
       
       # if data[86] == 0:
       #    # return 'campo de data vazio'# (None, None, None)
@@ -200,12 +181,11 @@ def processarRespostaModbus(codTipoEquipamento, resp: bytes):
 
       text =  data[6:86]
       text = extrair_texto(text, codTipoEquipamento)
-      # print(f"Text: {text}")
 
       date = datetime.datetime(year=data[86], month=data[87], day=data[88], 
                               hour=data[89], minute=data[90], second=data[91], microsecond=data[92]*1000)
-      # print(f"Date: {date}")
-      # print([text, data, date])
+     
+      # print([text, date.strftime("%d-%m-%Y %H:%M:%S.%f")])
       yield [text, data, date]
    
 
@@ -330,7 +310,6 @@ def buscarLogsNoBanco(cursor, codEquipamento, tipoLog):
 def expandirTextEvent(log, colunas):
    dataCadastro, codEquipamento, codTipoEquipamento, nomeEvent, textEvents  = log
    textEvents = textEvents.strip('()').split(', ')
-   # print(type(textEvents))
    textEventsExpandido = {}
    for index, coluna in enumerate(colunas):
       textEventsExpandido[coluna] = textEvents[index]
@@ -393,22 +372,14 @@ def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
 
 
 def testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta:int):
-   # print(f"Entrou em testaConexaoModbus...")
    req = gerarRequisicao(tipoLog=3)
-   # print(f"Requisição: {req}")
    try:
       with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
-         # print("Conectou com o modbus")
          conexaoComModbus.send(req)
-         # print("requisição enviada")
          resposta = struct.unpack(
             ">3H3BH",
             conexaoComModbus.recv(1024))
-         # print("resposta recebida")
-         # print(f"Resposta = {resposta}")
          codTipoEquipamento = resposta[6]
-         # print(f"codTipoEquipamento = {codTipoEquipamento}")
-         # print(f"Saindo de testaConexaoModbus...")
          return codTipoEquipamento
    except TimeoutError as e:
       return e
@@ -443,7 +414,7 @@ def fetchLog(idSolicitacao: int,
       # print(f'codEquipamento - {codEquipamento} - codTipoEquipamento - {codTipoEquipamento}')
 
       if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
-         # print('não foi possível conectrar com o modbus')
+         
          with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
             file.write(f"{datetime.datetime.now()}\tid:{id}\t'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
             return
@@ -472,13 +443,10 @@ def fetchLog(idSolicitacao: int,
          # Log Eventos
          ran = range(500)
 
-         # print(f'ran - {ran}')
-
       with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
          try:
             values = []
             
-            # if tipoLog == 0:
             registerValue = 0
             if tipoLog == 1:
                registerValue = 1
@@ -495,38 +463,33 @@ def fetchLog(idSolicitacao: int,
                   2, #byte count
                   registerValue 
                )
-            # print(f"req: {req}")
 
             conexaoComModbus.send(req)
             res = conexaoComModbus.recv(1024)
-            # print(f"res: {res.hex()}")
-            # print(f"Len res = {len(res)}")
 
             assert res == b'\x00\x00\x00\x00\x00\x06\x12\x10\xe6\x14\x00\x01'
 
             for startingAddress in ran:
                req = gerarRequisicao(startingAddress, modbusId, startingAddress, tipoLog, codTipoEquipamento ) # startingAddress é sempre o mesmo número que o transactionId
-               # print(f'requisição {req.hex()}') # {startingAddress} -
+               
                conexaoComModbus.send(req)
                res = conexaoComModbus.recv(1024)
-               # print(f'res - {res}')
+               
                if codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
                   respostas = processarRespostaModbus(codTipoEquipamento, res[9:])
-                  # print(f"respostas: {respostas}")
+                  
 
                   try:
                      for resposta in respostas:
-                        
+                                                
                         nomeEvent, textEvent, date = resposta
-                        # print(f"nomeEvent - {nomeEvent}")
-                        # print(f"textEvent - {textEvent}")
-                        # print(f"{date} {nomeEvent}")
+                        
+                        print(f"Evento/Alarme: {nomeEvent} - Data: {date.strftime('%d-%m-%Y %H:%M:%S.%f')} ")
                         
                         # values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date)))
-                        # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date))
+                       
                      
                         # linha = (codEquipamento, codTipoEquipamento, nomeEvent, date, str(textEvent))
-                        # print(linha)
                         if date >= ultimaLinha[4] and date <= datetime.datetime.now(): # and textEvent != ultimaLinha[3]:    #  and textEvent != ultimaLinha[3]Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                           #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                           #  então exibir apenas um é o suficiente.
@@ -534,7 +497,6 @@ def fetchLog(idSolicitacao: int,
                               values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
                            else:
                               values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date)))
-                        # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
                         
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
@@ -554,20 +516,16 @@ def fetchLog(idSolicitacao: int,
                         resposta = next(processarRespostaModbus(codTipoEquipamento, res)) # Usando 'next' pois processarRespostaModbus, por conta do yield
                                                                                           # no tratamento das respostas dos ASC, é uma função geradora. 
                                                                                           # Antes estava usando return e tava dando pau
-                        # print(f'resposta:{resposta}')
+                        
                      
                         nomeEvent, textEvent, date = resposta
-                        # print(f"nomeEvent - {nomeEvent}")
-                        # print(f"textEvente - {textEvent}")
-                        # print(f"dataEvente - {date}")
-                     
+                        print(f"Evento/Alarme: {nomeEvent} - Data: {date.strftime('%d-%m-%Y %H:%M:%S.%f')} ")
                         linha = (codEquipamento, codTipoEquipamento, nomeEvent, date, str(textEvent))
-                        print(linha)
+                        
                         if linha[3] >= ultimaLinha[4]: # and textEvent != ultimaLinha[3]:    #   Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
                                                                                        #  para esses casos vou considerar apenas um dos alarme/eventos. O que realmente importa é o nome
                                                                                        #  então exibir apenas um é o suficiente.
                            values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent[93:]), str(date)))
-                        # print(str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(date))
                      
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
@@ -597,7 +555,6 @@ def fetchLog(idSolicitacao: int,
             print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} {e}")
             return 0
          finally:
-            # print(values)
             with pool.get_connection() as conexaoComBanco:
                with conexaoComBanco.cursor() as cursor:
                   escreverLogNoBanco(conexaoComBanco, cursor, values, tipoLog)
@@ -668,3 +625,8 @@ if __name__ == "__main__":
 
    args = parser.parse_args()
    main(args.idSolicitacao, args.codEquipamento, args.modbusId, args.host, args.porta, args.codTipoLog)
+   
+   
+# 619
+# 667
+# 822
