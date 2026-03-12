@@ -53,7 +53,7 @@ def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
                                  AND TIMESTAMPDIFF(MINUTE,
                                  lt.data_cadastro,
                                  NOW()) < 2)
-                  AND cod_tipo_conexao = '1'
+                  -- AND cod_tipo_conexao = '1'
                         """
         try:
             # conexaoComBanco.reconnect()
@@ -177,32 +177,38 @@ def processar_solicitacoes(solicitacoes):
             # Após a conclusão
             stdout, stderr = process.communicate()
             if process.returncode != 0:
-                with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-                    file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
+                print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro ao executar recuperaLogs.py: {e}\n"
                                 f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
+                # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+                #     file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
+                #                 f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
 
 
     except mysql.connector.DatabaseError as e:
         # print(f"Erro de banco de dados MySQL: {e}")
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de banco de dados MySQL: {e}'\n")
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de banco de dados MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de banco de dados MySQL: {e}'\n")
     except mysql.connector.OperationalError as e:
         # print(f"Erro operacional MySQL: {e}")
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro operacional MySQL: {e}'\n")
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro operacional MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro operacional MySQL: {e}'\n")
     except mysql.connector.ProgrammingError as e:
         # print(f"Erro de programação MySQL: {e}")
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de programação MySQL: {e}'\n")
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de programação MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de programação MySQL: {e}'\n")
     except mysql.connector.DataError as e:
         # print(f"Erro de dados MySQL: {e}")
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de dados MySQL: {e}'\n")
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de dados MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de dados MySQL: {e}'\n")
     except mysql.connector.Error as e:
         # print(f"Erro de conexão MySQL: {e}")
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de conexão MySQL: {e}'\n")
-
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de conexão MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de conexão MySQL: {e}'\n")
 
 
 def main():
@@ -243,11 +249,12 @@ def main():
                     processar_solicitacoes(solicitacoes)
 
     except mysql.connector.InterfaceError as e:
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()} - Erro de interface MySQL: {e}\n")
+        print(f"{datetime.datetime.now()}\tErro de interface MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()} - Erro de interface MySQL: {e}\n")
     except IOError as e: 
         if e.errno == errno.EPIPE: 
-            print(e)
+            print(f'{datetime.datetime.now()}\tErro de pipe: {e}')
     except mysql.connector.errors.OperationalError as e:
         pass
     finally:
