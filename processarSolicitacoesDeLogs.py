@@ -9,7 +9,7 @@ import time
 from signal import signal, SIGPIPE, SIG_DFL
 import errno 
 
-
+from recuperaLogs import main as recuperaLogs
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
     query = f"""SELECT
@@ -32,7 +32,7 @@ def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
         query = f"""INSERT INTO solicitacao_log (cod_equipamento, cod_tipo_log)
                   SELECT 
                      cod_equipamento,
-                     {x}
+                     {x} as cod_tipo_log
                   FROM
                      modbus_tcp
                   WHERE
@@ -47,13 +47,13 @@ def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
                                  LEFT JOIN
                               leituras lt ON lt.cod_equipamento = eq.codigo
                         WHERE
-                              cod_tipo_conexao = 1 AND eq.ativo = 1
-                                 AND us.ativo = 1
-                                 AND lt.cod_campo = 3
+                              cod_tipo_conexao = '1' AND eq.ativo = '1'
+                                 AND us.ativo = '1'
+                                 AND lt.cod_campo = '3'
                                  AND TIMESTAMPDIFF(MINUTE,
                                  lt.data_cadastro,
                                  NOW()) < 2)
-                  AND cod_tipo_conexao = 1
+                  -- AND cod_tipo_conexao = '1'
                         """
         try:
             # conexaoComBanco.reconnect()
@@ -106,7 +106,17 @@ def recuperarParametrosCounicacao(codEquipamento: int) -> list:
       
 
 
-def processar_solicitacoes(pool, solicitacoes):
+def processar_solicitacoes(solicitacoes):
+    pool = mysql.connector.pooling.MySQLConnectionPool(
+            pool_name="MySqlPoolProcessarSolicitacoes",
+            pool_size=1,
+            user=os.environ['LOGS_USER'],
+            password=os.environ['LOGS_PASSWORD'],
+            host=os.environ['LOGS_HOST'],
+            database=os.environ['LOGS_DATABASE'],
+            connection_timeout=300
+        )
+    
     try:
         
         processes = []
@@ -141,11 +151,12 @@ def processar_solicitacoes(pool, solicitacoes):
 
             if resultado:
                 host, porta, modbusId = resultado
-                process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
-                                            str(idSolicitacao), str(codEquipamento),
-                                            str(modbusId), host, str(porta), str(codTipoLog)],
-                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                processes.append((process, idSolicitacao))
+                # process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
+                #                             str(idSolicitacao), str(codEquipamento),
+                #                             str(modbusId), host, str(porta), str(codTipoLog)],
+                #                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                # processes.append((process, idSolicitacao))
+                recuperaLogs(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog)
                 
             time.sleep(1)
 
@@ -166,32 +177,38 @@ def processar_solicitacoes(pool, solicitacoes):
             # Após a conclusão
             stdout, stderr = process.communicate()
             if process.returncode != 0:
-                with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-                    file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
+                print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro ao executar recuperaLogs.py: {e}\n"
                                 f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
+                # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+                #     file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
+                #                 f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
 
 
     except mysql.connector.DatabaseError as e:
         # print(f"Erro de banco de dados MySQL: {e}")
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de banco de dados MySQL: {e}'\n")
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de banco de dados MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de banco de dados MySQL: {e}'\n")
     except mysql.connector.OperationalError as e:
         # print(f"Erro operacional MySQL: {e}")
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro operacional MySQL: {e}'\n")
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro operacional MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro operacional MySQL: {e}'\n")
     except mysql.connector.ProgrammingError as e:
         # print(f"Erro de programação MySQL: {e}")
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de programação MySQL: {e}'\n")
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de programação MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de programação MySQL: {e}'\n")
     except mysql.connector.DataError as e:
         # print(f"Erro de dados MySQL: {e}")
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de dados MySQL: {e}'\n")
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de dados MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de dados MySQL: {e}'\n")
     except mysql.connector.Error as e:
         # print(f"Erro de conexão MySQL: {e}")
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de conexão MySQL: {e}'\n")
-
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de conexão MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de conexão MySQL: {e}'\n")
 
 
 def main():
@@ -203,15 +220,15 @@ def main():
     inicio = time.time()
     print(15*'-' + 3*' ' + f'Início da execução em {datetime.datetime.now()}' + 3*' ' + 15*'-')
    
+    pool = mysql.connector.pooling.MySQLConnectionPool(
+        pool_name="MySqlPool",
+        pool_size=1,
+        user=os.environ['LOGS_USER'],
+        password=os.environ['LOGS_PASSWORD'],
+        host=os.environ['LOGS_HOST'],
+        database=os.environ['LOGS_DATABASE']
+    )
     try:
-        pool = mysql.connector.pooling.MySQLConnectionPool(
-            pool_name="MySqlPool",
-            pool_size=10,
-            user=os.environ['LOGS_USER'],
-            password=os.environ['LOGS_PASSWORD'],
-            host=os.environ['LOGS_HOST'],
-            database=os.environ['LOGS_DATABASE']
-        )
 
         # Conexão inicial para popular a tabela
         with pool.get_connection() as conexaoComBanco:
@@ -228,21 +245,20 @@ def main():
                     solicitacoes = buscarSolicitacoes(cursor)
                     if not solicitacoes:
                         break
-                    processar_solicitacoes(pool, solicitacoes)
+                        # return
+                    processar_solicitacoes(solicitacoes)
 
     except mysql.connector.InterfaceError as e:
-        with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
-            file.write(f"{datetime.datetime.now()} - Erro de interface MySQL: {e}\n")
+        print(f"{datetime.datetime.now()}\tErro de interface MySQL: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()} - Erro de interface MySQL: {e}\n")
     except IOError as e: 
         if e.errno == errno.EPIPE: 
-            print(e)
+            print(f'{datetime.datetime.now()}\tErro de pipe: {e}')
     except mysql.connector.errors.OperationalError as e:
         pass
     finally:
-        with mysql.connector.connect(user=os.environ['LOGS_USER'],
-                        password=os.environ['LOGS_PASSWORD'],
-                        host=os.environ['LOGS_HOST'],
-                        database=os.environ['LOGS_DATABASE']) as conexaoComBanco:
+        with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:
                 truncate = f"truncate table solicitacao_log"
                 # conexaoComBanco.reconnect()
