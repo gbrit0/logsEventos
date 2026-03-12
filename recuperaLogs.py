@@ -10,21 +10,23 @@ from signal import signal, SIGPIPE, SIG_DFL
 signal(SIGPIPE,SIG_DFL)
 
 
-def conectarComModbus(idSolicitacao: str, host: str, porta: int): #  -> socket.socket
+def conectarComModbus(idSolicitacao: str, host: str, porta: int, codEquipamento: int): #  -> socket.socket
    try:
       con = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       con.settimeout(45)
       con.connect((host, int(porta)))
 
    except TimeoutError as e:
-      with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()} {idSolicitacao} Timeout em conectarComModbus: {e}")
+      print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tTimeout em conectarComModbus: {e}")
+      
+      # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+      #    file.write(f"{datetime.datetime.now()} {idSolicitacao} Timeout em conectarComModbus: {e}")
 
       return
    except OSError as e:
       return """Não foi possível conectar com o Modbus. Erro de rota. Provavelmente a comunicação é via conversor. Verificar o cod_tipo_conexao em modbus_tcp"""
    except Exception as e:
-      print(f"Erro em conectarComModbus: {e, traceback.format_exc()}")
+      print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro em conectarComModbus: {e, traceback.format_exc()}")
    finally:
       return con
       
@@ -87,33 +89,39 @@ def recuperarParametrosCounicacao(idSolicitacao, codEquipamento: int, conexaoCom
                # host, porta, modbusId, codTipoEquipamento
                return result[0], result[1], result[2], result[3] #, codEquipamento
    except mysql.connector.InterfaceError as e:
-      print(f"Erro de interface MySQL: {e}")
-      with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de interface MySQL: {e}'\n")
+      # print(f"Erro de interface MySQL: {e}")
+      print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de interface MySQL: {e}")
+      # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+      #    file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de interface MySQL: {e}'\n")
    except mysql.connector.DatabaseError as e:
-      print(f"Erro de banco de dados MySQL: {e}")
-      with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de banco de dados MySQL: {e}'\n")
+      # print(f"Erro de banco de dados MySQL: {e}")
+      print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de banco de dados MySQL: {e}")
+      # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+      #    file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de banco de dados MySQL: {e}'\n")
    except mysql.connector.OperationalError as e:
-      print(f"Erro operacional MySQL: {e}")
-      with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro operacional MySQL: {e}'\n")
+      # print(f"Erro operacional MySQL: {e}")
+      print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro operacional MySQL: {e}")
+      # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+      #    file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro operacional MySQL: {e}'\n")
    except mysql.connector.IntegrityError as e:
-      print(f"Erro de integridade MySQL: {e}")
-      with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n")
+      # print(f"Erro de integridade MySQL: {e}")
+      print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de integridade MySQL: {e}")
+      # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+      #    file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n")
    except mysql.connector.ProgrammingError as e:
-      print(f"Erro de programação MySQL: {e}")
-      with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       id{idSolicitacao}        'Erro de programação MySQL: {e}'\n")
+      # print(f"Erro de programação MySQL: {e}")
+      print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de programação MySQL: {e}")
+      # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+      #    file.write(f"{datetime.datetime.now()}       id{idSolicitacao}        'Erro de programação MySQL: {e}'\n")
    except mysql.connector.DataError as e:
-      print(f"Erro de dados MySQL: {e}")
-      with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de dados MySQL: {e}'\n")
+      # print(f"Erro de dados MySQL: {e}")
+      print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de dados MySQL: {e}")
+      # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+      #    file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de dados MySQL: {e}'\n")
    except mysql.connector.Error as e:
-      print(f"Erro de conexão MySQL: {e}")
-      with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-         file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de conexão MySQL: {e}'\n")
+      print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de conexão MySQL: {e}'")
+      # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+      #    file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de conexão MySQL: {e}'\n")
 
    
 
@@ -371,10 +379,10 @@ def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
 #             func(conexaoComBanco=conexaoComBanco, cursor=cursor, **kwargs)
 
 
-def testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta:int):
+def testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta:int, codEquipamento):
    req = gerarRequisicao(tipoLog=3)
    try:
-      with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
+      with conectarComModbus(idSolicitacao, host, porta, codEquipamento) as conexaoComModbus:
          conexaoComModbus.send(req)
          resposta = struct.unpack(
             ">3H3BH",
@@ -410,14 +418,17 @@ def fetchLog(idSolicitacao: int,
    try:
       
 
-      codTipoEquipamento = testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta)
+      codTipoEquipamento = testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta, codEquipamento)
       # print(f'codEquipamento - {codEquipamento} - codTipoEquipamento - {codTipoEquipamento}')
 
       if codTipoEquipamento == 0: # codTipoEquipamento == 0 quer dizer que não foi possível conectrar com o modbus
+         print(f"Equipamento: {codEquipamento}\tTipo log: {tipoLog}\t{datetime.datetime.now()}\tConexão com o equipamento não estabelecida!")
          
-         with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
-            file.write(f"{datetime.datetime.now()}\tid:{id}\t'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
-            return
+         # with open("logRecuperaLogs.txt", 'a', encoding='utf-8') as file:
+         #    file.write(f"{datetime.datetime.now()}\tid:{id}\t'Conexão com o equipamento {codEquipamento} não estabelecida'\n")
+         
+         return
+      
       else:
          with pool.get_connection() as conexaoComBanco:
             with conexaoComBanco.cursor() as cursor:      
@@ -443,7 +454,7 @@ def fetchLog(idSolicitacao: int,
          # Log Eventos
          ran = range(500)
 
-      with conectarComModbus(idSolicitacao, host, porta) as conexaoComModbus:
+      with conectarComModbus(idSolicitacao, host, porta, codEquipamento) as conexaoComModbus:
          try:
             values = []
             
@@ -484,7 +495,7 @@ def fetchLog(idSolicitacao: int,
                                                 
                         nomeEvent, textEvent, date = resposta
                         
-                        print(f"Evento/Alarme: {nomeEvent} - Data: {date.strftime('%d-%m-%Y %H:%M:%S.%f')} ")
+                        # print(f"Evento/Alarme: {nomeEvent} - Data: {date.strftime('%d-%m-%Y %H:%M:%S.%f')} ")
                         
                         # values.append((str(codEquipamento), str(codTipoEquipamento), str(nomeEvent), str(textEvent), str(date)))
                        
@@ -501,8 +512,8 @@ def fetchLog(idSolicitacao: int,
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
                      print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro de integridade MySQL: {e}")
-                     with open("logRecuperaLogs.txt", 'a') as file:
-                        file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
+                     # with open("logRecuperaLogs.txt", 'a') as file:
+                     #    file.write(f"{datetime.datetime.now()}       id:{idSolicitacao}        'Erro de integridade MySQL: {e}'\n") 
                   except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
                      # print(f"type error: {e}")
                      return 1
@@ -519,7 +530,7 @@ def fetchLog(idSolicitacao: int,
                         
                      
                         nomeEvent, textEvent, date = resposta
-                        print(f"Evento/Alarme: {nomeEvent} - Data: {date.strftime('%d-%m-%Y %H:%M:%S.%f')} ")
+                        # print(f"Evento/Alarme: {nomeEvent} - Data: {date.strftime('%d-%m-%Y %H:%M:%S.%f')} ")
                         linha = (codEquipamento, codTipoEquipamento, nomeEvent, date, str(textEvent))
                         
                         if linha[3] >= ultimaLinha[4]: # and textEvent != ultimaLinha[3]:    #   Existem casos em que o mesmo alarme/evento se repetem com o mesmo horário (ultimaLinha[3] é a data e hora)
@@ -530,8 +541,8 @@ def fetchLog(idSolicitacao: int,
                   except mysql.connector.IntegrityError as e:  # Integrity Error aconteceu durante a excução devido ao Unique adicionado nas tabelas no banco
                                                                # modificando a exceção para 'pass' para pular para a próxima iteração e ignorar os valores repetidos
                      print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} Erro de integridade MySQL: {e}")
-                     with open("logRecuperaLogs.txt", 'a') as file:
-                        file.write(f"{datetime.datetime.now()}\tid:{idSolicitacao}\t'Erro de integridade MySQL: {e}'\n") 
+                     # with open("logRecuperaLogs.txt", 'a') as file:
+                     #    file.write(f"{datetime.datetime.now()}\tid:{idSolicitacao}\t'Erro de integridade MySQL: {e}'\n") 
                   except TypeError as e: # O TypeError aqui vai indicar que a resposta do modbus foi vazia, logo, chegou ao fim do log e deve ser encerrado o fetchLog
                      # print(f"type error: {e}")
                      return
@@ -625,8 +636,3 @@ if __name__ == "__main__":
 
    args = parser.parse_args()
    main(args.idSolicitacao, args.codEquipamento, args.modbusId, args.host, args.porta, args.codTipoLog)
-   
-   
-# 619
-# 667
-# 822
