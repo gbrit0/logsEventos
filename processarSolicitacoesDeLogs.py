@@ -12,12 +12,13 @@ import errno
 from recuperaLogs import main as recuperaLogs
 
 def buscarSolicitacoes(cursor: mysql.connector.cursor):
+    print('Buscando solicitações...')
     query = f"""SELECT
                     *
                 FROM
                     solicitacao_log
-                LIMIT
-                    30
+                -- LIMIT
+                    -- 30
                 """
     
     
@@ -27,8 +28,8 @@ def buscarSolicitacoes(cursor: mysql.connector.cursor):
 
 def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
                                  cursor: mysql.connector.cursor):
-
-   for x in range(2):
+    print('Populando tabela de solicitações...')
+    for x in range(2):
         query = f"""INSERT INTO solicitacao_log (cod_equipamento, cod_tipo_log)
                   SELECT 
                      cod_equipamento,
@@ -53,14 +54,14 @@ def popularTabelaSolicitacoesLog(conexaoComBanco: mysql.connector,
                                  AND TIMESTAMPDIFF(MINUTE,
                                  lt.data_cadastro,
                                  NOW()) < 2)
-                  -- AND cod_tipo_conexao = '1'
+                  AND cod_tipo_conexao = '1'
                         """
-        try:
+        # try:
             # conexaoComBanco.reconnect()
-            cursor.execute(query)
-            conexaoComBanco.commit()
-        except mysql.connector.IntegrityError:
-            pass       
+        cursor.execute(query)
+        conexaoComBanco.commit()
+        # except mysql.connector.IntegrityError:
+        #     pass       
 
 
 def recuperarParametrosCounicacao(codEquipamento: int) -> list:
@@ -151,12 +152,12 @@ def processar_solicitacoes(solicitacoes):
 
             if resultado:
                 host, porta, modbusId = resultado
-                # process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
-                #                             str(idSolicitacao), str(codEquipamento),
-                #                             str(modbusId), host, str(porta), str(codTipoLog)],
-                #                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                # processes.append((process, idSolicitacao))
-                recuperaLogs(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog)
+                process = subprocess.Popen([sys.executable, 'recuperaLogs.py',
+                                            str(idSolicitacao), str(codEquipamento),
+                                            str(modbusId), host, str(porta), str(codTipoLog)],
+                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                processes.append((process, idSolicitacao))
+                # recuperaLogs(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog)
                 
             time.sleep(1)
 
@@ -177,8 +178,7 @@ def processar_solicitacoes(solicitacoes):
             # Após a conclusão
             stdout, stderr = process.communicate()
             if process.returncode != 0:
-                print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro ao executar recuperaLogs.py: {e}\n"
-                                f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
+                print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro ao executar recuperaLogs.py: {e}\nSaída padrão: {stdout}\nErro padrão: {stderr}\n")
                 # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
                 #     file.write(f"{datetime.datetime.now()} - Erro ao executar recuperaLogs.py para o equipamento {codEquipamento}\n"
                 #                 f"Saída padrão: {stdout}\nErro padrão: {stderr}\n")
@@ -209,7 +209,10 @@ def processar_solicitacoes(solicitacoes):
         print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro de conexão MySQL: {e}")
         # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
         #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro de conexão MySQL: {e}'\n")
-
+    except Exception as e:
+        print(f"Equipamento: {codEquipamento}\t{datetime.datetime.now()}\tErro inesperado: {e}")
+        # with open("logProcessarSolicitacoesLogs.txt", 'a') as file:
+        #     file.write(f"{datetime.datetime.now()}       eq:{codEquipamento}        'Erro inesperado: {e}'\n")
 
 def main():
     #Ignore SIG_PIPE and don't throw exceptions on it... (http://docs.python.org/library/signal.html)  
@@ -235,18 +238,14 @@ def main():
             with conexaoComBanco.cursor() as cursor:
                 popularTabelaSolicitacoesLog(conexaoComBanco, cursor)
                 # time.sleep(5) 
+                solicitacoes = buscarSolicitacoes(cursor)
 
-        # Conexão para processar as solicitações
-        
-        while True:
-            with pool.get_connection() as conexaoComBanco:
-                with conexaoComBanco.cursor() as cursor:
-                # conexaoComBanco.reconnect()
-                    solicitacoes = buscarSolicitacoes(cursor)
-                    if not solicitacoes:
-                        break
-                        # return
-                    processar_solicitacoes(solicitacoes)
+        while len(solicitacoes) > 0:
+            
+            print(f"{len(solicitacoes)} restantes para processar...")
+            
+            processar_solicitacoes(solicitacoes[:30]) # Processa as 30 primeiras
+            solicitacoes = solicitacoes[30:] # Remove as 30 solicitações processadas
 
     except mysql.connector.InterfaceError as e:
         print(f"{datetime.datetime.now()}\tErro de interface MySQL: {e}")

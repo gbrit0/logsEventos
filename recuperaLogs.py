@@ -13,7 +13,7 @@ signal(SIGPIPE,SIG_DFL)
 def conectarComModbus(idSolicitacao: str, host: str, porta: int, codEquipamento: int): #  -> socket.socket
    try:
       con = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      con.settimeout(45)
+      con.settimeout(30)
       con.connect((host, int(porta)))
 
    except TimeoutError as e:
@@ -313,8 +313,6 @@ def buscarLogsNoBanco(cursor, codEquipamento, tipoLog):
    cursor.excute(query)
    return cursor.fetchall()
 
-
-
 def expandirTextEvent(log, colunas):
    dataCadastro, codEquipamento, codTipoEquipamento, nomeEvent, textEvents  = log
    textEvents = textEvents.strip('()').split(', ')
@@ -334,14 +332,12 @@ def expandirTextEvent(log, colunas):
    
    return logExpandido
    
-
 def processarLogs(logs, colunas):
     todosLogs = []
     for log in logs:
         logExpandido = expandirTextEvent(log, colunas)
         todosLogs.append(logExpandido)
     return todosLogs
-
 
 def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
 
@@ -364,8 +360,6 @@ def buscarUltimaLinhaLog(codEquipamento, cursor, tipoLog = 0):
    cursor.execute(query)
    return cursor.fetchone()
    # return None
-
-   
 
 
 # def abreConexaoComBancoEexcutaFuncao(func, **kwargs):
@@ -396,8 +390,6 @@ def testaConexaoModbusERecuperaTipoEquipamento(idSolicitacao, host, porta:int, c
    except Exception as e:
       print(f"Erro em testaConexaoModbusERecuperaTipoEquipamento: {e, traceback.format_exc()}")
       
-
-
 def fetchLog(idSolicitacao: int,
              codEquipamento: int,
              modbusId: int,
@@ -441,6 +433,7 @@ def fetchLog(idSolicitacao: int,
 
       if tipoLog == 1:  # Log Alarmes
          if codTipoEquipamento == 88:
+            # ran = range(500, 651)
             ran = range(500, 651)
          elif codTipoEquipamento == 182 or codTipoEquipamento == 93 or codTipoEquipamento == 201:
             ran = range(500, 998, 3)
@@ -553,8 +546,6 @@ def fetchLog(idSolicitacao: int,
                      print(f"Equipamento:   {codEquipamento} Tipo log:   {tipoLog}   {datetime.datetime.now()}   Erro ao processar resposta modbus em fetchLog: {e}")
                      return
                   
-               
-
          except mysql.connector.Error as e:
             print(f"Equipamento: {codEquipamento} Tipo log: {tipoLog} {datetime.datetime.now()} erro na comunicacao com o banco de dados {e}")
             return 0
@@ -622,7 +613,7 @@ def main(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog): # id
    fetchLog(idSolicitacao, codEquipamento, modbusId, host, porta, codTipoLog)
 
    fim = time.time()
-   print(f"Equipamento: {codEquipamento}   Tipo log: {codTipoLog}  {datetime.datetime.now()}   tempo de excução: {(fim-inicio):.2f} segundos")
+   print(f"Equipamento: {codEquipamento}\tTipo log: {codTipoLog}\t{datetime.datetime.now()}\ttempo de excução: {(fim-inicio):.2f} segundos")
 
 
 if __name__ == "__main__":
